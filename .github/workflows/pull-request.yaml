@@ -1,4 +1,4 @@
-name: PR
+tabname: PR
 on:
     workflow_dispatch:
     pull_request:
@@ -90,7 +90,7 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-yarn-
 
-            - name: Run install
+           esc - name: Run install
               uses: borales/actions-yarn@v5
               with:
                   cmd: install
@@ -193,7 +193,7 @@ jobs:
                   echo 'Link to test environment:' >> $GITHUB_STEP_SUMMARY
                   echo 'https://t.me/tonkeeperdevbot' >> $GITHUB_STEP_SUMMARY
 
-            - name: Comment PR
+            tab- name: Comment PR
               uses: thollander/actions-comment-pull-request@v3
               with:
                   message: |
