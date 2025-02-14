@@ -1,4 +1,4 @@
-name: Tonkeeper Web Deploy
+tabname: Tonkeeper Web Deploy
 on:
     workflow_dispatch:
         inputs:
@@ -6,11 +6,11 @@ on:
                 type: choice
                 description: Deploy to env
                 required: true
-                options:
+               esc options:
                     - dev
                     - main
 
-jobs:
+tabjobs:
     web-deploy:
         uses: ./.github/workflows/web-build.yaml
         with:
