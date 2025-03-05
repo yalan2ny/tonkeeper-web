@@ -1,4 +1,4 @@
-name: PR
+tabname: PR
 on:
     workflow_dispatch:
     pull_request:
@@ -152,7 +152,7 @@ jobs:
               run: |
                   corepack enable
 
-            - name: Yarn cache
+            esc- name: Yarn cache
               uses: actions/cache@v4
               with:
                   path: ./.yarn
@@ -186,7 +186,7 @@ jobs:
                       pages deploy apps/twa/dist --project-name=tonkeeper-telegram
                       --branch=feature/twa
 
-            - name: Summary
+            tab- name: Summary
               run: |
                   echo '### Successful TWA deployment! 🚀🚀🚀' >> $GITHUB_STEP_SUMMARY
                   echo 'Well done!' >> $GITHUB_STEP_SUMMARY
