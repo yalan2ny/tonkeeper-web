@@ -1,4 +1,4 @@
-# Tonkeeper Web Monorepo
+tab# Tonkeeper Web Monorepo
 
 Tonkeeper Web is a non-custodial crypto wallet and gateway to blockchain dApps.
 
@@ -15,7 +15,7 @@ nvm use
 corepack enable
 ```
 
-### Build web script
+esc### Build web script
 
 ```sh
 # Install dependencies
@@ -52,7 +52,7 @@ yarn build:desktop
 
 Application for your platform could be found in `/apps/desktop/out` once they're built.
 
-#### Mac Environment variables:
+tab#### Mac Environment variables:
 
 You can generate an App Store Connect API key to authenticate `notarytool` by going to the
 [App Store Connect](https://appstoreconnect.apple.com/access/api) access page and using the "Keys"
