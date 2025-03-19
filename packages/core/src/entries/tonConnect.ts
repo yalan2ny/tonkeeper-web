@@ -26,6 +26,9 @@ export interface TonConnectTransactionPayloadMessage {
     amount: string | number;
     payload?: string; // base64 cell
     stateInit?: string; // base64 cell
+    extra_currency?: {
+        [k: number]: string;
+    };
 }
 
 export type TonConnectAccount = {
@@ -59,13 +62,15 @@ export interface ConnectEventError {
     };
 }
 
+export interface TonConnectEventPayload {
+    items: ConnectItemReply[];
+    device: DeviceInfo;
+}
+
 export interface ConnectEventSuccess {
     event: 'connect';
     id: number;
-    payload: {
-        items: ConnectItemReply[];
-        device: DeviceInfo;
-    };
+    payload: TonConnectEventPayload;
 }
 
 export type ConnectItem = TonAddressItem | TonProofItem;
@@ -169,6 +174,7 @@ export enum SEND_TRANSACTION_ERROR_CODES {
 export type SendTransactionFeature = {
     name: 'SendTransaction';
     maxMessages: number;
+    extraCurrencySupported?: boolean;
 };
 
 export type SendTransactionFeatureDeprecated = 'SendTransaction';

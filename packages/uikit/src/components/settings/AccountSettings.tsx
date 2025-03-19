@@ -19,7 +19,9 @@ import {
     SecurityIcon,
     SettingsProIcon,
     WalletsIcon,
-    BatteryIcon
+    BatteryIcon,
+    LockIcon,
+    BlockchainsIcon
 } from './SettingsIcons';
 import { SettingsItem, SettingsList } from './SettingsList';
 import {
@@ -28,6 +30,8 @@ import {
     isMnemonicAndPassword
 } from '@tonkeeper/core/dist/entries/account';
 import { useBatteryEnabledConfig } from '../../state/battery';
+import { useCanViewTwoFA } from '../../state/two-fa';
+import { useCanUseTronForActiveWallet } from '../../state/tron/tron';
 
 const SingleAccountSettings = () => {
     const { t } = useTranslation();
@@ -38,6 +42,8 @@ const SingleAccountSettings = () => {
     const { proFeatures } = useAppContext();
     const { onOpen: rename } = useRenameNotification();
     const batteryEnableConfig = useBatteryEnabledConfig();
+    const twoFAEnabled = useCanViewTwoFA();
+    const canUseTron = useCanUseTronForActiveWallet();
 
     const mainItems = useMemo<SettingsItem[]>(() => {
         const items: SettingsItem[] = [];
@@ -79,6 +85,14 @@ const SingleAccountSettings = () => {
                 name: t('settings_mam_indexes'),
                 icon: `#${account.derivations.length.toString()}`,
                 action: () => navigate(relative(WalletSettingsRoute.derivations))
+            });
+        }
+
+        if (twoFAEnabled && (account.type === 'mnemonic' || account.type === 'mam')) {
+            items.push({
+                name: t('two_fa_long'),
+                icon: <LockIcon />,
+                action: () => navigate(relative(SettingsRoute.twoFa))
             });
         }
 
@@ -149,8 +163,16 @@ const SingleAccountSettings = () => {
             });
         }
 
+        if (canUseTron) {
+            items.push({
+                name: t('chains_title'),
+                icon: <BlockchainsIcon />,
+                action: () => navigate(relative(WalletSettingsRoute.chains))
+            });
+        }
+
         return items;
-    }, [t, navigate, account, jettons, nft]);
+    }, [t, navigate, account, jettons, nft, twoFAEnabled, batteryEnableConfig, canUseTron]);
 
     return (
         <>
@@ -169,10 +191,13 @@ const MultipleAccountSettings = () => {
     const account = useActiveAccount();
     const { onOpen: rename } = useRenameNotification();
     const batteryEnableConfig = useBatteryEnabledConfig();
+    const twoFAEnabled = useCanViewTwoFA();
 
     const [deleteAccount, setDeleteAccount] = useState(false);
 
     const wallet = account.activeTonWallet;
+
+    const canUseTron = useCanUseTronForActiveWallet();
 
     const accountItems = useMemo(() => {
         const items: SettingsItem[] = [
@@ -248,6 +273,14 @@ const MultipleAccountSettings = () => {
             });
         }
 
+        if (twoFAEnabled && (account.type === 'mnemonic' || account.type === 'mam')) {
+            items.push({
+                name: t('two_fa_long'),
+                icon: <LockIcon />,
+                action: () => navigate(relative(SettingsRoute.twoFa))
+            });
+        }
+
         if (isAccountVersionEditable(account)) {
             items.push({
                 name: t('settings_wallet_version'),
@@ -303,13 +336,21 @@ const MultipleAccountSettings = () => {
             });
         }
 
+        if (canUseTron) {
+            items.push({
+                name: t('chains_title'),
+                icon: <BlockchainsIcon />,
+                action: () => navigate(relative(WalletSettingsRoute.chains))
+            });
+        }
+
         items.push({
             name: t('Delete_wallet_data'),
             icon: <LogOutIcon />,
             action: () => setDeleteAccount(true)
         });
         return items;
-    }, [t, navigate, wallet, account, jettons, nft]);
+    }, [t, navigate, wallet, account, jettons, nft, twoFAEnabled, batteryEnableConfig, canUseTron]);
 
     return (
         <>

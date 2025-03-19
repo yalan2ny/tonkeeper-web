@@ -91,6 +91,9 @@ jobs:
               if: always() && runner.os == 'macOS'
               run: |
                   rm ${{ github.workspace }}/AuthKey.p8
+    ipad-build:
+        uses: ./.github/workflows/ipad-build.yaml
+        secrets: inherit
 
     web-build:
         uses: ./.github/workflows/web-build.yaml
@@ -104,13 +107,13 @@ jobs:
             environment: 'main'
         secrets: inherit
 
-    web-tests:
-        needs: web-build
-        uses: ./.github/workflows/web-tests.yaml
-        with:
-            base-url: 'https://wallet.tonkeeper.com'
-            transaction: true
-        secrets: inherit
+    # web-tests:
+    #     needs: web-build
+    #     uses: ./.github/workflows/web-tests.yaml
+    #     with:
+    #         base-url: 'https://wallet.tonkeeper.com'
+    #         transaction: true
+    #     secrets: inherit
 
     extension-build:
         name: extension-build

@@ -20,6 +20,8 @@ import { SecuritySettings } from './Security';
 import { Settings } from './Settings';
 import { WalletVersionPage } from './Version';
 import { BatteryPage } from './Battery';
+import { TwoFAPage } from './TwoFA';
+import { ChainsPage } from './Chains';
 
 const SettingsRouter = () => {
     return (
@@ -44,6 +46,8 @@ const SettingsRouter = () => {
             <Route path={WalletSettingsRoute.connectedApps} element={<ConnectedAppsSettings />} />
             <Route path={WalletSettingsRoute.derivations} element={<MAMIndexesPage />} />
             <Route path={WalletSettingsRoute.battery} element={<BatteryPage />} />
+            <Route path={WalletSettingsRoute.twoFa} element={<TwoFAPage />} />
+            <Route path={WalletSettingsRoute.chains} element={<ChainsPage />} />
             <Route
                 path="*"
                 element={

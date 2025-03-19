@@ -7,7 +7,6 @@ import { Network } from '../../entries/network';
 import {
     CONNECT_EVENT_ERROR_CODES,
     ConnectEvent,
-    ConnectItem,
     ConnectItemReply,
     ConnectRequest,
     DAppManifest,
@@ -32,7 +31,7 @@ import {
     saveAccountConnection
 } from './connectionService';
 import { SessionCrypto } from './protocol';
-import { Account, isAccountTonWalletStandard } from '../../entries/account';
+import { Account, isAccountSupportTonConnect } from '../../entries/account';
 
 export function parseTonConnect(options: { url: string }): TonConnectParams | string {
     try {
@@ -93,7 +92,7 @@ const getManifestResponse = async (manifestUrl: string) => {
         /**
          * Request file with CORS header;
          */
-        return await fetch(`https://manifest-proxy.nkuznetsov.workers.dev/${manifestUrl}`);
+        return await fetch(`https://c.tonapi.io/json?url=${btoa(manifestUrl)}`);
     }
 };
 
@@ -120,12 +119,12 @@ export const getManifest = async (request: ConnectRequest) => {
     return manifest;
 };
 
-function getPlatform(): DeviceInfo['platform'] {
+export function getBrowserPlatform(): DeviceInfo['platform'] {
     const platform =
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (window.navigator as any)?.userAgentData?.platform || window.navigator.platform;
+        (window?.navigator as any)?.userAgentData?.platform || window?.navigator.platform;
 
-    const userAgent = window.navigator.userAgent;
+    const userAgent = window?.navigator.userAgent;
 
     const macosPlatforms = ['macOS', 'Macintosh', 'MacIntel', 'MacPPC', 'Mac68K'];
     const windowsPlatforms = ['Win32', 'Win64', 'Windows', 'WinCE'];
@@ -151,9 +150,13 @@ function getPlatform(): DeviceInfo['platform'] {
     return os!;
 }
 
-export const getDeviceInfo = (appVersion: string, maxMessages: number): DeviceInfo => {
+export const getDeviceInfo = (
+    platform: DeviceInfo['platform'],
+    appVersion: string,
+    maxMessages: number
+): DeviceInfo => {
     return {
-        platform: getPlatform()!,
+        platform: platform,
         appName: 'Tonkeeper',
         appVersion: appVersion,
         maxProtocolVersion: 2,
@@ -161,7 +164,8 @@ export const getDeviceInfo = (appVersion: string, maxMessages: number): DeviceIn
             'SendTransaction',
             {
                 name: 'SendTransaction',
-                maxMessages: maxMessages
+                maxMessages: maxMessages,
+                extraCurrencySupported: true
             }
         ]
     };
@@ -171,7 +175,7 @@ export const getDappConnection = async (
     storage: IStorage,
     origin: string,
     account?: TonConnectAccount
-): Promise<{ wallet: TonWalletStandard; connection: AccountConnection } | undefined> => {
+): Promise<{ wallet: TonContract; connection: AccountConnection } | undefined> => {
     const appConnections = await getAppConnections(storage);
     if (account) {
         const walletState = appConnections.find(c => c.wallet.rawAddress === account?.address);
@@ -196,9 +200,9 @@ export const getDappConnection = async (
 
 export const getAppConnections = async (
     storage: IStorage
-): Promise<{ wallet: TonWalletStandard; connections: AccountConnection[] }[]> => {
+): Promise<{ wallet: TonContract; connections: AccountConnection[] }[]> => {
     const accounts = (await accountsStorage(storage).getAccounts()).filter(
-        isAccountTonWalletStandard
+        isAccountSupportTonConnect
     );
     if (!accounts.length) {
         throw new TonConnectError(
@@ -235,10 +239,15 @@ export const checkWalletConnectionOrDie = async (options: {
     }
 };
 
+export interface ReConnectPayload {
+    items: ConnectItemReply[];
+    maxMessages: number;
+}
+
 export const tonReConnectRequest = async (
     storage: IStorage,
     webViewUrl: string
-): Promise<ConnectItem[]> => {
+): Promise<ReConnectPayload> => {
     const connection = await getDappConnection(storage, webViewUrl);
     if (!connection) {
         throw new TonConnectError(
@@ -246,7 +255,23 @@ export const tonReConnectRequest = async (
             CONNECT_EVENT_ERROR_CODES.BAD_REQUEST_ERROR
         );
     }
-    return [toTonAddressItemReply(connection.wallet, connection.wallet.network ?? Network.MAINNET)];
+
+    const maxMessages =
+        isStandardTonWallet(connection.wallet) && connection.wallet.version === WalletVersion.V5R1
+            ? 255
+            : 4;
+
+    return {
+        items: [
+            toTonAddressItemReply(
+                connection.wallet,
+                'network' in connection.wallet
+                    ? (connection.wallet.network as Network)
+                    : Network.MAINNET
+            )
+        ],
+        maxMessages
+    };
 };
 
 export const toTonAddressItemReply = (
@@ -292,11 +317,12 @@ export const tonConnectProofPayload = (
     origin: string,
     wallet: string,
     payload: string
-): ConnectProofPayload => {
+): ConnectProofPayload & { domain: string } => {
     const timestampBuffer = Buffer.allocUnsafe(8);
     timestampBuffer.writeBigInt64LE(BigInt(timestamp));
 
-    const domainBuffer = Buffer.from(new URL(origin).host);
+    const domain = new URL(origin).host;
+    const domainBuffer = Buffer.from(domain);
 
     const domainLengthBuffer = Buffer.allocUnsafe(4);
     domainLengthBuffer.writeInt32LE(domainBuffer.byteLength);
@@ -329,7 +355,8 @@ export const tonConnectProofPayload = (
         domainBuffer,
         payload,
         origin,
-        messageBuffer
+        messageBuffer,
+        domain
     };
 };
 
@@ -386,7 +413,7 @@ export const tonDisconnectRequest = async (options: { storage: IStorage; webView
 
 const getMaxMessages = (account: Account) => {
     if (account.type === 'ledger') {
-        return 1;
+        return 4;
     }
 
     const wallet = account.activeTonWallet;
@@ -428,7 +455,7 @@ export const saveWalletTonConnect = async (options: {
         event: 'connect',
         payload: {
             items: options.replyItems,
-            device: getDeviceInfo(options.appVersion, maxMessages)
+            device: getDeviceInfo(getBrowserPlatform(), options.appVersion, maxMessages)
         }
     };
 };

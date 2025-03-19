@@ -64,6 +64,8 @@ import { TwaAppSdk } from './libs/appSdk';
 import { useAnalytics, useTwaAppViewport } from './libs/hooks';
 import { useGlobalPreferencesQuery } from '@tonkeeper/uikit/dist/state/global-preferences';
 import { useGlobalSetup } from '@tonkeeper/uikit/dist/state/globalSetup';
+import { useRealtimeUpdatesInvalidation } from '@tonkeeper/uikit/dist/hooks/realtime';
+import { RedirectFromDesktopSettings } from "@tonkeeper/uikit/dist/pages/settings/RedirectFromDesktopSettings";
 
 const Initialize = React.lazy(() => import('@tonkeeper/uikit/dist/pages/import/Initialize'));
 const ImportRouter = React.lazy(() => import('@tonkeeper/uikit/dist/pages/import'));
@@ -284,7 +286,10 @@ export const Loader: FC<{ sdk: TwaAppSdk }> = ({ sdk }) => {
         hideMam: true,
         hideMultisig: true,
         defaultWalletVersion: WalletVersion.V5R1,
-        browserLength: 4
+        browserLength: 4,
+        env: {
+            tronApiKey: import.meta.env.VITE_APP_TRON_API_KEY
+        }
     };
 
     return (
@@ -339,6 +344,7 @@ const Content: FC<{
     useWindowsScroll();
     useTrackLocation();
     useDebuggingTools();
+    useRealtimeUpdatesInvalidation();
 
     if (lock) {
         return (
@@ -415,6 +421,10 @@ const MainPages: FC<{ showQrScan: boolean; sdk: TwaAppSdk }> = ({ showQrScan, sd
                                 <Settings />
                             </Suspense>
                         }
+                    />
+                    <Route
+                      path={any(AppRoute.walletSettings)}
+                      element={<RedirectFromDesktopSettings />}
                     />
                     <Route path={AppRoute.coins}>
                         <Route

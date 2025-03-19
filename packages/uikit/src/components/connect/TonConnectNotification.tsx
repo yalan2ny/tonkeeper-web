@@ -1,10 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-    ConnectItemReply,
     ConnectRequest,
-    DAppManifest
+    DAppManifest,
+    TonConnectEventPayload
 } from '@tonkeeper/core/dist/entries/tonConnect';
-import { getManifest } from '@tonkeeper/core/dist/service/tonConnect/connectService';
+import {
+    getDeviceInfo,
+    getManifest,
+    getBrowserPlatform
+} from '@tonkeeper/core/dist/service/tonConnect/connectService';
 import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useAppSdk } from '../../hooks/appSdk';
@@ -22,7 +26,7 @@ import { ResultButton } from '../transfer/common';
 import { SelectDropDown, SelectDropDownHost, SelectField } from '../fields/Select';
 import { DropDownContent, DropDownItem, DropDownItemsDivider } from '../DropDown';
 import { Account } from '@tonkeeper/core/dist/entries/account';
-import { WalletId } from '@tonkeeper/core/dist/entries/wallet';
+import { isStandardTonWallet, WalletId, WalletVersion } from '@tonkeeper/core/dist/entries/wallet';
 
 const Title = styled(H2)`
     text-align: center;
@@ -80,7 +84,7 @@ const ConnectContent: FC<{
     manifest: DAppManifest;
     handleClose: (
         result: {
-            replyItems: ConnectItemReply[];
+            replyItems: TonConnectEventPayload;
             manifest: DAppManifest;
             account: Account;
             walletId: WalletId;
@@ -118,11 +122,25 @@ const ConnectContent: FC<{
                 webViewUrl: origin,
                 ...selectedAccountAndWallet
             });
+
+            const wallet = selectedAccountAndWallet.account.getTonWallet(
+                selectedAccountAndWallet.walletId
+            );
+
+            const maxMessages =
+                wallet && isStandardTonWallet(wallet) && wallet.version === WalletVersion.V5R1
+                    ? 255
+                    : 4;
+
+            selectedAccountAndWallet.walletId;
             setDone(true);
             setTimeout(
                 () =>
                     handleClose({
-                        replyItems,
+                        replyItems: {
+                            items: replyItems,
+                            device: getDeviceInfo(getBrowserPlatform(), sdk.version, maxMessages)
+                        },
                         manifest,
                         ...selectedAccountAndWallet
                     }),
@@ -142,8 +160,8 @@ const ConnectContent: FC<{
     }
 
     const tonProofRequested = params.items.some(item => item.name === 'ton_proof');
-    const cantConnectLedger =
-        selectedAccountAndWallet.account.type === 'ledger' && tonProofRequested;
+    const cantConnectProof =
+        selectedAccountAndWallet.account.type === 'ton-multisig' && tonProofRequested;
 
     return (
         <NotificationBlock onSubmit={onSubmit}>
@@ -187,15 +205,13 @@ const ConnectContent: FC<{
                         fullWidth
                         primary
                         loading={isLoading}
-                        disabled={isLoading || cantConnectLedger || isReadOnly}
+                        disabled={isLoading || cantConnectProof || isReadOnly}
                         type="submit"
                     >
                         {t('ton_login_connect_button')}
                     </Button>
                 )}
-                {cantConnectLedger && (
-                    <LedgerError>{t('ledger_operation_not_supported')}</LedgerError>
-                )}
+                {cantConnectProof && <LedgerError>{t('operation_not_supported')}</LedgerError>}
                 {isReadOnly && <LedgerError>{t('operation_not_supported')}</LedgerError>}
             </>
             <Notes>{t('ton_login_notice')}</Notes>
@@ -222,7 +238,7 @@ const SelectAccountDropDown: FC<{
         <SelectDropDown
             right="0"
             top="-64px"
-            width="min(calc(var(--app-width) - 2rem), 400px)"
+            width="100%"
             payload={onClose => (
                 <DropDownContent>
                     {accountsAndWallets.map(accountAndWallet => (
@@ -300,7 +316,7 @@ export const TonConnectNotification: FC<{
     params: ConnectRequest | null;
     handleClose: (
         result: {
-            replyItems: ConnectItemReply[];
+            replyItems: TonConnectEventPayload;
             manifest: DAppManifest;
             account: Account;
             walletId: WalletId;

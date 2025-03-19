@@ -1,8 +1,7 @@
 import { Account, isAccountTonWalletStandard } from '@tonkeeper/core/dist/entries/account';
 import { formatAddress, toShortValue } from '@tonkeeper/core/dist/utils/common';
-import { useActiveAccount, useActiveApi, useActiveTonNetwork } from '../state/wallet';
+import { useActiveAccount, useActiveApi } from '../state/wallet';
 import { useTranslation } from './translation';
-import { useAppContext } from './appContext';
 import { useAppSdk } from './appSdk';
 import { useCheckTouchId } from '../state/password';
 import { useMutation } from '@tanstack/react-query';
@@ -13,11 +12,12 @@ import {
 import { walletStateInitFromState } from '@tonkeeper/core/dist/service/wallet/contractService';
 import { signTonConnectOver } from '../state/mnemonic';
 import { getServerTime } from '@tonkeeper/core/dist/service/ton-blockchain/utils';
+import { Network } from '@tonkeeper/core/dist/entries/network';
 
 export function useAccountLabel(account: Account) {
     const tonWallets = account.allTonWallets;
-    const network = useActiveTonNetwork();
     const { t } = useTranslation();
+    const network = account.type === 'testnet' ? Network.TESTNET : Network.MAINNET;
 
     return tonWallets.length === 1
         ? toShortValue(formatAddress(tonWallets[0].rawAddress, network))
@@ -32,7 +32,7 @@ export const useSignTonProof = () => {
     const { mutateAsync: checkTouchId } = useCheckTouchId();
 
     return useMutation<
-        ReturnType<typeof createTonProofItem>,
+        Omit<ReturnType<typeof createTonProofItem>, 'stateInit'> & { stateInit: string },
         Error,
         { payload: string; origin: string }
     >(async ({ origin, payload }) => {
@@ -58,6 +58,6 @@ export const useSignTonProof = () => {
             })(proofPayload.bufferToSign),
             proofPayload,
             stateInit
-        );
+        ) as Omit<ReturnType<typeof createTonProofItem>, 'stateInit'> & { stateInit: string };
     });
 };
