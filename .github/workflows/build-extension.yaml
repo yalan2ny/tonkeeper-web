@@ -1,4 +1,4 @@
-name: Tonkeeper Build Extension
+tabname: Tonkeeper Build Extension
 on:
     workflow_dispatch:
 jobs:
