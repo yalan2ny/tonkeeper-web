@@ -2,15 +2,20 @@ import {
     backwardCompatibilityOnlyWalletVersions,
     WalletVersion as WalletVersionType,
     WalletVersions,
-    walletVersionText
+    walletVersionText,
+    WalletId
 } from '@tonkeeper/core/dist/entries/wallet';
 import { formatAddress, toShortValue } from '@tonkeeper/core/dist/utils/common';
-import { AccountId, AccountVersionEditable } from '@tonkeeper/core/dist/entries/account';
-import React, { FC } from 'react';
+import {
+    AccountId,
+    AccountVersionEditable,
+    getNetworkByAccount
+} from '@tonkeeper/core/dist/entries/account';
+import { FC } from 'react';
 import styled from 'styled-components';
 import { InnerBody } from '../../components/Body';
 import { SubHeader } from '../../components/SubHeader';
-import { Body2, Label1 } from '../../components/Text';
+import { Body2, Label1, Label2 } from '../../components/Text';
 import { useTranslation } from '../../hooks/translation';
 import {
     useStandardTonWalletVersions,
@@ -20,13 +25,18 @@ import {
     useAddTonWalletVersionToAccount,
     useAccountState
 } from '../../state/wallet';
-import { ListBlock, ListItem, ListItemPayload } from '../../components/List';
+import { ListBlockDesktopAdaptive, ListItem, ListItemPayload } from '../../components/List';
 import { toFormattedTonBalance } from '../../hooks/balance';
 import { Button } from '../../components/fields/Button';
 import { Address } from '@ton/core';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { AppRoute } from '../../libs/routes';
-import { SkeletonList } from '../../components/Skeleton';
+import { SkeletonListDesktopAdaptive } from '../../components/Skeleton';
+import {
+    DesktopViewHeader,
+    DesktopViewPageLayout
+} from '../../components/desktop/DesktopViewLayout';
+import { useIsFullWidthMode } from '../../hooks/useIsFullWidthMode';
 
 const LedgerError = styled(Body2)`
     margin: 0.5rem 0;
@@ -50,6 +60,19 @@ const ButtonsContainer = styled.div`
 
 export const WalletVersionPage = () => {
     const { t } = useTranslation();
+    const isFullWidth = useIsFullWidthMode();
+
+    if (isFullWidth) {
+        return (
+            <DesktopViewPageLayout>
+                <DesktopViewHeader backButton>
+                    <Label2>{t('settings_wallet_version')}</Label2>
+                </DesktopViewHeader>
+                <WalletVersionPageContent />
+            </DesktopViewPageLayout>
+        );
+    }
+
     return (
         <>
             <SubHeader title={t('settings_wallet_version')} />
@@ -63,24 +86,27 @@ export const WalletVersionPage = () => {
 export const WalletVersionPageContent: FC<{
     afterWalletOpened?: () => void;
     accountId?: AccountId;
-}> = ({ afterWalletOpened, accountId }) => {
-    const { t } = useTranslation();
+    className?: string;
+}> = ({ afterWalletOpened, accountId, className }) => {
     const activeAccount = useActiveAccount();
     const passedAccount = useAccountState(accountId);
     const selectedAccount = passedAccount ?? activeAccount;
 
-    if (selectedAccount.type === 'ledger') {
-        return <LedgerError>{t('ledger_operation_not_supported')}</LedgerError>;
-    }
-
-    if (selectedAccount.type === 'keystone' || selectedAccount.type === 'watch-only') {
-        return <LedgerError>{t('operation_not_supported')}</LedgerError>;
+    if (
+        selectedAccount.type === 'ledger' ||
+        selectedAccount.type === 'keystone' ||
+        selectedAccount.type === 'watch-only' ||
+        selectedAccount.type === 'mam' ||
+        selectedAccount.type === 'ton-multisig'
+    ) {
+        return <Navigate to="../" />;
     }
 
     return (
         <WalletVersionPageContentInternal
             afterWalletOpened={afterWalletOpened}
             account={selectedAccount}
+            className={className}
         />
     );
 };
@@ -88,18 +114,21 @@ export const WalletVersionPageContent: FC<{
 export const WalletVersionPageContentInternal: FC<{
     afterWalletOpened?: () => void;
     account: AccountVersionEditable;
-}> = ({ afterWalletOpened, account }) => {
+    className?: string;
+}> = ({ afterWalletOpened, account, className }) => {
     const { t } = useTranslation();
     const activeAccount = useActiveAccount();
     const appActiveWallet = activeAccount.activeTonWallet;
+
     const selectedWallet = account.activeTonWallet;
     const currentAccountWalletsVersions = account.allTonWallets;
+    const network = getNetworkByAccount(account);
 
     const { mutateAsync: selectWallet, isLoading: isSelectWalletLoading } =
         useMutateActiveTonWallet();
     const navigate = useNavigate();
 
-    const { data: wallets } = useStandardTonWalletVersions(selectedWallet.publicKey);
+    const { data: wallets } = useStandardTonWalletVersions(network, selectedWallet.publicKey);
 
     const { mutate: createWallet, isLoading: isCreateWalletLoading } =
         useAddTonWalletVersionToAccount();
@@ -107,9 +136,9 @@ export const WalletVersionPageContentInternal: FC<{
     const { mutate: hideWallet, isLoading: isHideWalletLoading } =
         useRemoveTonWalletVersionFromAccount();
 
-    const onOpenWallet = async (address: Address) => {
-        if (address.toRawString() !== appActiveWallet.rawAddress) {
-            await selectWallet(address.toRawString());
+    const onOpenWallet = async (w: { id: WalletId; address: Address }) => {
+        if (w.id !== appActiveWallet.id) {
+            await selectWallet(w.id);
         }
         navigate(AppRoute.home);
         afterWalletOpened?.();
@@ -122,15 +151,14 @@ export const WalletVersionPageContentInternal: FC<{
         });
     };
 
-    const onHideWallet = async (w: { address: Address }) => {
+    const onHideWallet = async (w: { id: WalletId; address: Address }) => {
         hideWallet({
             accountId: account.id,
-            walletId: w.address.toRawString()
+            walletId: w.id
         });
     };
-
     if (!wallets) {
-        return <SkeletonList size={WalletVersions.length} />;
+        return <SkeletonListDesktopAdaptive className={className} size={WalletVersions.length} />;
     }
 
     const isLoading = isSelectWalletLoading || isCreateWalletLoading || isHideWalletLoading;
@@ -145,7 +173,7 @@ export const WalletVersionPageContentInternal: FC<{
     );
 
     return (
-        <ListBlock>
+        <ListBlockDesktopAdaptive className={className}>
             {walletsToShow.map(wallet => {
                 const isWalletAdded = currentAccountWalletsVersions.some(
                     w => w.rawAddress === wallet.address.toRawString()
@@ -157,7 +185,7 @@ export const WalletVersionPageContentInternal: FC<{
                             <TextContainer>
                                 <Label1>{walletVersionText(wallet.version)}</Label1>
                                 <Body2Secondary>
-                                    {toShortValue(formatAddress(wallet.address)) + ' '}·
+                                    {toShortValue(formatAddress(wallet.address, network)) + ' '}·
                                     {' ' + toFormattedTonBalance(wallet.tonBalance)}
                                     &nbsp;TON
                                     {wallet.hasJettons && t('wallet_version_and_tokens')}
@@ -166,7 +194,7 @@ export const WalletVersionPageContentInternal: FC<{
                             {isWalletAdded ? (
                                 <ButtonsContainer>
                                     <Button
-                                        onClick={() => onOpenWallet(wallet.address)}
+                                        onClick={() => onOpenWallet(wallet)}
                                         loading={isLoading}
                                     >
                                         {t('open')}
@@ -193,6 +221,6 @@ export const WalletVersionPageContentInternal: FC<{
                     </ListItem>
                 );
             })}
-        </ListBlock>
+        </ListBlockDesktopAdaptive>
     );
 };

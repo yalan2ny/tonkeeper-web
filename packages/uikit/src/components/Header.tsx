@@ -1,33 +1,40 @@
+import { Account, getNetworkByAccount } from '@tonkeeper/core/dist/entries/account';
+import {
+    DerivationItemNamed,
+    TonContract,
+    sortDerivationsByIndex,
+    sortWalletsByVersion
+} from '@tonkeeper/core/dist/entries/wallet';
 import { formatAddress, toShortValue } from '@tonkeeper/core/dist/utils/common';
-import { FC, useState } from 'react';
+import { FC } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import styled, { createGlobalStyle, css } from 'styled-components';
 import { useTranslation } from '../hooks/translation';
-import { AppRoute, SettingsRoute } from '../libs/routes';
+import { AppRoute, SettingsRoute, WalletSettingsRoute } from '../libs/routes';
 import { useUserCountry } from '../state/country';
 import {
-    useActiveWallet,
     useAccountsState,
-    useMutateActiveTonWallet,
-    useActiveTonNetwork,
-    useActiveAccount
+    useActiveAccount,
+    useActiveWallet,
+    useMutateActiveTonWallet
 } from '../state/wallet';
 import { DropDown } from './DropDown';
-import { DoneIcon, DownIcon, PlusIcon, SettingsIcon } from './Icon';
+import { DoneIcon, DownIcon, ExclamationMarkTriangleIcon, PlusIcon, SettingsIcon } from './Icon';
 import { ColumnText, Divider } from './Layout';
 import { ListItem, ListItemPayload } from './List';
 import { H1, H3, Label1, Label2 } from './Text';
+import { AccountAndWalletBadgesGroup, NetworkBadge } from './account/AccountBadge';
 import { ScanButton } from './connect/ScanButton';
-import { ImportNotification } from './create/ImportNotification';
+import { useAddWalletNotification } from './modals/AddWalletNotificationControlled';
 import { SkeletonText } from './shared/Skeleton';
 import { WalletEmoji } from './shared/emoji/WalletEmoji';
-import {
-    sortDerivationsByIndex,
-    sortWalletsByVersion,
-    TonContract
-} from '@tonkeeper/core/dist/entries/wallet';
-import { Account, isAccountControllable } from '@tonkeeper/core/dist/entries/account';
-import { AccountAndWalletBadgesGroup } from './account/AccountBadge';
+import { isAccountTonWalletStandard } from '@tonkeeper/core/dist/entries/account';
+import { notNullish } from '@tonkeeper/core/dist/utils/types';
+
+import { useSideBarItems } from '../state/folders';
+import { useTwoFAWalletConfig } from '../state/two-fa';
+import { BorderSmallResponsive } from './shared/Styles';
+import { hexToRGBA } from '../libs/css';
 
 const Block = styled.div<{
     center?: boolean;
@@ -141,12 +148,20 @@ const DropDownContainerStyle = createGlobalStyle`
   }
 `;
 
+const Column = styled.div`
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+`;
+
 const WalletRow: FC<{
     account: Account;
     wallet: TonContract;
+    derivation?: DerivationItemNamed;
     onClose: () => void;
-}> = ({ account, wallet, onClose }) => {
-    const network = useActiveTonNetwork();
+}> = ({ account, wallet, onClose, derivation }) => {
+    const network = getNetworkByAccount(account);
     const { mutate } = useMutateActiveTonWallet();
     const address = toShortValue(formatAddress(wallet.rawAddress, network));
     const activeWallet = useActiveWallet();
@@ -159,9 +174,16 @@ const WalletRow: FC<{
             }}
         >
             <ListItemPayloadStyled>
-                <WalletEmoji emoji={account.emoji} />
-                <ColumnTextStyled noWrap text={account.name} secondary={address} />
-                <AccountAndWalletBadgesGroup account={account} walletId={wallet.id} />
+                <WalletEmoji emoji={derivation?.emoji ?? account.emoji} />
+                <ColumnTextStyled
+                    noWrap
+                    text={derivation?.name ?? account.name}
+                    secondary={address}
+                />
+                <Column>
+                    <AccountAndWalletBadgesGroup account={account} walletId={wallet.id} />
+                    <NetworkBadge size="s" network={network} />
+                </Column>
                 {activeWallet?.id === wallet.id ? (
                     <Icon>
                         <DoneIcon />
@@ -178,8 +200,16 @@ const DropDownPayload: FC<{ onClose: () => void; onCreate: () => void }> = ({
 }) => {
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const accountsWallets: { wallet: TonContract; account: Account }[] = useAccountsState().flatMap(
-        a => {
+    const accountsWallets: {
+        wallet: TonContract;
+        account: Account;
+        derivation?: DerivationItemNamed;
+    }[] = useSideBarItems()
+        .map(i => (i.type === 'folder' ? i.accounts : [i]))
+        .flat()
+        .filter(notNullish)
+        .filter(a => a.type !== 'ton-multisig')
+        .flatMap(a => {
             if (a.type === 'ledger') {
                 return a.derivations
                     .slice()
@@ -193,13 +223,21 @@ const DropDownPayload: FC<{ onClose: () => void; onCreate: () => void }> = ({
                     );
             }
 
-            if (!isAccountControllable(a)) {
+            if (!isAccountTonWalletStandard(a)) {
                 return [
                     {
                         wallet: a.activeTonWallet,
                         account: a
                     }
                 ];
+            }
+
+            if (a.type === 'mam') {
+                return a.derivations.map(derivation => ({
+                    wallet: derivation.tonWallets[0],
+                    account: a,
+                    derivation
+                }));
             }
 
             return a.allTonWallets
@@ -209,8 +247,7 @@ const DropDownPayload: FC<{ onClose: () => void; onCreate: () => void }> = ({
                     wallet: w,
                     account: a
                 }));
-        }
-    );
+        });
 
     if (!accountsWallets) {
         return null;
@@ -233,11 +270,12 @@ const DropDownPayload: FC<{ onClose: () => void; onCreate: () => void }> = ({
     } else {
         return (
             <>
-                {accountsWallets.map(({ wallet, account }) => (
+                {accountsWallets.map(({ wallet, account, derivation }) => (
                     <WalletRow
                         account={account}
                         key={wallet.id}
                         wallet={wallet}
+                        derivation={derivation}
                         onClose={onClose}
                     />
                 ))}
@@ -262,37 +300,73 @@ const TitleStyled = styled(Title)`
     align-items: center;
 `;
 
+const TwoFARecoveryStarted = styled(Link)`
+    text-decoration: unset;
+    box-sizing: border-box;
+    min-height: 36px;
+    ${BorderSmallResponsive};
+    background-color: ${p => hexToRGBA(p.theme.accentOrange, 0.16)};
+    color: ${p => p.theme.accentOrange};
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    transition: background-color 0.1s ease-in;
+    width: fit-content;
+    margin: 0 auto;
+
+    &:hover {
+        background-color: ${p => hexToRGBA(p.theme.accentOrange, 0.2)};
+    }
+`;
+
 export const Header: FC<{ showQrScan?: boolean }> = ({ showQrScan = true }) => {
     const account = useActiveAccount();
-    const [isOpen, setOpen] = useState(false);
+    const { onOpen: addWallet } = useAddWalletNotification();
+    const { t } = useTranslation();
+    const { data: twoFAConfig } = useTwoFAWalletConfig();
 
     const accounts = useAccountsState();
     const shouldShowIcon = accounts.length > 1;
 
     return (
-        <Block center>
-            <DropDownContainerStyle />
-            <DropDown
-                center
-                payload={onClose => (
-                    <DropDownPayload onClose={onClose} onCreate={() => setOpen(true)} />
-                )}
-                containerClassName="header-dd-container"
-            >
-                <TitleStyled>
-                    {shouldShowIcon && <WalletEmoji emoji={account.emoji} />}
-                    <TitleName>{account.name}</TitleName>
+        <>
+            <Block center>
+                <DropDownContainerStyle />
+                <DropDown
+                    center
+                    payload={onClose => <DropDownPayload onClose={onClose} onCreate={addWallet} />}
+                    containerClassName="header-dd-container"
+                >
+                    <TitleStyled>
+                        {shouldShowIcon && (
+                            <WalletEmoji
+                                emoji={
+                                    account.type === 'mam'
+                                        ? account.activeDerivation.emoji
+                                        : account.emoji
+                                }
+                            />
+                        )}
+                        <TitleName>
+                            {account.type === 'mam' ? account.activeDerivation.name : account.name}
+                        </TitleName>
 
-                    <DownIconWrapper>
-                        <DownIcon />
-                    </DownIconWrapper>
-                </TitleStyled>
-            </DropDown>
+                        <DownIconWrapper>
+                            <DownIcon />
+                        </DownIconWrapper>
+                    </TitleStyled>
+                </DropDown>
 
-            {showQrScan && <ScanButton />}
-
-            <ImportNotification isOpen={isOpen} setOpen={setOpen} />
-        </Block>
+                {showQrScan && <ScanButton />}
+            </Block>
+            {twoFAConfig?.status === 'disabling' && (
+                <TwoFARecoveryStarted to={AppRoute.settings + WalletSettingsRoute.twoFa}>
+                    <ExclamationMarkTriangleIcon />
+                    <Label2>{t('wallet_2fa_recovery_started')}</Label2>
+                </TwoFARecoveryStarted>
+            )}
+        </>
     );
 };
 

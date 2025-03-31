@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/naming-convention */
+
 import { InvalidateQueryFilters } from '@tanstack/react-query';
 
 export enum QueryKey {
@@ -5,6 +7,7 @@ export enum QueryKey {
     wallet = 'wallet',
     wallets = 'wallets',
     walletConfig = 'wallet_config',
+    accountConfig = 'accountConfig',
     lock = 'lock',
     touchId = 'touchId',
     canPromptTouchId = 'canPromptTouchId',
@@ -25,14 +28,18 @@ export enum QueryKey {
     language = 'language',
     walletVersions = 'walletVersions',
     globalPreferencesConfig = 'globalPreferencesConfig',
+    multisigWallets = 'multisigWallets',
+    multisigSigners = 'multisigSigners',
+    viewedMultisigOrders = 'viewedMultisigOrders',
 
     tonConnectConnection = 'tonConnectConnection',
     tonConnectLastEventId = 'tonConnectLastEventId',
     subscribed = 'subscribed',
+    globalSubscribed = 'globalSubscribed',
     featuredRecommendations = 'recommendations',
     experimental = 'experimental',
 
-    tron = 'tron',
+    tronAssets = 'tronAssets',
     rate = 'rate',
     total = 'total',
     distribution = 'distribution',
@@ -51,7 +58,23 @@ export enum QueryKey {
     swapMaxValue = 'swapMaxValue',
     swapAllAssets = 'swapAllAssets',
     swapWalletAssets = 'swapWalletAssets',
-    swapCustomToken = 'swapCustomToken'
+    swapCustomToken = 'swapCustomToken',
+
+    multisigWallet = 'multisigWallet',
+    multisigOrder = 'multisigOrder',
+
+    batteryServiceConfig = 'batteryServiceConfig',
+    batteryOnchainRechargeMethods = 'batteryOnchainRechargeMethods',
+    batteryAuthToken = 'batteryAuthToken',
+    batteryBalance = 'batteryBalance',
+    estimateBatteryPurchase = 'estimateBatteryPurchase',
+
+    gaslessConfig = 'gaslessConfig',
+
+    twoFAWalletConfig = 'twoFAWalletConfig',
+    twoFAActivationProcess = 'twoFAActivationProcess',
+    twoFARemovingProcess = 'twoFARemovingProcess',
+    twoFACancellRecoveryProcess = 'twoFARemovingProcess'
 }
 
 export enum JettonKey {
@@ -67,8 +90,9 @@ export enum TonkeeperApiKey {
     fiat
 }
 
-export function anyOfKeysParts(...keys: string[]): InvalidateQueryFilters {
+export function anyOfKeysParts(...keys: (string | undefined)[]): InvalidateQueryFilters {
+    const notEmptyKeys = keys.filter(Boolean);
     return {
-        predicate: q => q.queryKey.some(element => keys.includes(element as string))
+        predicate: q => q.queryKey.some(element => notEmptyKeys.includes(element as string))
     };
 }

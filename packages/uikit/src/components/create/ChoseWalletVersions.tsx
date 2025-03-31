@@ -1,5 +1,3 @@
-import { mnemonicToWalletKey } from '@ton/crypto';
-import { isAccountControllable } from '@tonkeeper/core/dist/entries/account';
 import {
     WalletVersion,
     WalletVersions,
@@ -14,34 +12,36 @@ import { toFormattedTonBalance } from '../../hooks/balance';
 import { hideIosKeyboard, openIosKeyboard } from '../../hooks/ios';
 import { useTranslation } from '../../hooks/translation';
 import { useAccountState, useStandardTonWalletVersions } from '../../state/wallet';
-import { ChevronLeftIcon } from '../Icon';
-import { ListBlock, ListItem, ListItemPayload } from '../List';
-import { SkeletonList } from '../Skeleton';
-import { Body1, Body2, H2, Label1 } from '../Text';
-import { Button } from '../fields/Button';
+import { SkeletonListDesktopAdaptive } from '../Skeleton';
 import { Checkbox } from '../fields/Checkbox';
-import { RoundedButton } from '../fields/RoundedButton';
+import { ButtonResponsiveSize } from '../fields/Button';
+import { Body1, Body2, Body2Class, H2Label2Responsive, Label1 } from '../Text';
+import { ListBlock, ListItem, ListItemPayload } from '../List';
+import { isAccountTonWalletStandard } from '@tonkeeper/core/dist/entries/account';
+import { mnemonicToKeypair } from '@tonkeeper/core/dist/service/mnemonicService';
+import { MnemonicType } from '@tonkeeper/core/dist/entries/password';
+import { Network } from '@tonkeeper/core/dist/entries/network';
+import { mayBeCreateAccountId } from '@tonkeeper/core/dist/service/walletService';
+import { handleSubmit } from '../../libs/form';
 
-const Wrapper = styled.div`
+const Wrapper = styled.form`
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
 `;
 
-const BackButtonContainer = styled.div`
-    padding: 8px;
-    margin-bottom: 24px;
-    margin-right: auto;
+const Body = styled(Body1)`
+    user-select: none;
+    margin-bottom: 1rem;
+
+    text-align: center;
+    color: ${props => props.theme.textSecondary};
+
+    ${p => p.theme.displayType === 'full-width' && Body2Class}
 `;
 
-const Body1Styled = styled(Body1)`
-    margin-top: 4px;
-    margin-bottom: 32px;
-    color: ${p => p.theme.textSecondary};
-`;
-
-const SkeletonListStyled = styled(SkeletonList)`
+const SkeletonListStyled = styled(SkeletonListDesktopAdaptive)`
     width: 100%;
 `;
 
@@ -60,27 +60,51 @@ const Body2Secondary = styled(Body2)`
 `;
 
 const SubmitBlock = styled.div`
-    padding: 16px 0 32px;
+    padding-top: 16px;
     flex: 1;
     display: flex;
     align-items: flex-end;
     width: 100%;
 `;
 
-export const ChoseWalletVersions: FC<{
+export const ChoseWalletVersionsByMnemonic: FC<{
     mnemonic: string[];
+    mnemonicType: MnemonicType;
+    network: Network;
     onSubmit: (versions: WalletVersion[]) => void;
-    onBack: () => void;
     isLoading?: boolean;
-}> = ({ mnemonic, onSubmit, onBack, isLoading }) => {
+}> = ({ mnemonic, onSubmit, network, isLoading, mnemonicType }) => {
+    const [publicKey, setPublicKey] = useState<string | undefined>(undefined);
+
+    useEffect(() => {
+        mnemonicToKeypair(mnemonic, mnemonicType).then(keypair =>
+            setPublicKey(keypair.publicKey.toString('hex'))
+        );
+    }, [mnemonic]);
+
+    return (
+        <ChoseWalletVersions
+            network={network}
+            publicKey={publicKey}
+            onSubmit={onSubmit}
+            isLoading={isLoading}
+        />
+    );
+};
+
+export const ChoseWalletVersions: FC<{
+    publicKey: string | undefined;
+    network: Network;
+    onSubmit: (versions: WalletVersion[]) => void;
+    isLoading?: boolean;
+}> = ({ publicKey, onSubmit, network, isLoading }) => {
     const { t } = useTranslation();
     const sdk = useAppSdk();
     const { defaultWalletVersion } = useAppContext();
 
-    const [publicKey, setPublicKey] = useState<string | undefined>(undefined);
-    const { data: wallets } = useStandardTonWalletVersions(publicKey);
+    const { data: wallets } = useStandardTonWalletVersions(network, publicKey);
     const [checkedVersions, setCheckedVersions] = useState<WalletVersion[]>([]);
-    const accountState = useAccountState(publicKey);
+    const accountState = useAccountState(mayBeCreateAccountId(network, publicKey));
 
     useEffect(() => {
         if (sdk.isIOs()) {
@@ -88,15 +112,9 @@ export const ChoseWalletVersions: FC<{
         }
     }, []);
 
-    useEffect(() => {
-        mnemonicToWalletKey(mnemonic).then(keypair =>
-            setPublicKey(keypair.publicKey.toString('hex'))
-        );
-    }, [mnemonic]);
-
     useLayoutEffect(() => {
         if (wallets) {
-            if (accountState && isAccountControllable(accountState)) {
+            if (accountState && isAccountTonWalletStandard(accountState)) {
                 return setCheckedVersions(accountState.allTonWallets.map(w => w.version));
             }
 
@@ -124,14 +142,9 @@ export const ChoseWalletVersions: FC<{
     };
 
     return (
-        <Wrapper>
-            <BackButtonContainer>
-                <RoundedButton onClick={onBack}>
-                    <ChevronLeftIcon />
-                </RoundedButton>
-            </BackButtonContainer>
-            <H2>{t('choose_wallets_title')}</H2>
-            <Body1Styled>{t('choose_wallets_subtitle')}</Body1Styled>
+        <Wrapper onSubmit={handleSubmit(onSelect)}>
+            <H2Label2Responsive>{t('choose_wallets_title')}</H2Label2Responsive>
+            <Body>{t('choose_wallets_subtitle')}</Body>
             {!wallets ? (
                 <SkeletonListStyled size={WalletVersions.length} />
             ) : (
@@ -143,7 +156,7 @@ export const ChoseWalletVersions: FC<{
                                     <TextContainer>
                                         <Label1>{walletVersionText(wallet.version)}</Label1>
                                         <Body2Secondary>
-                                            {toShortValue(formatAddress(wallet.address))}
+                                            {toShortValue(formatAddress(wallet.address, network))}
                                             &nbsp;·&nbsp;
                                             {toFormattedTonBalance(wallet.tonBalance)}&nbsp;TON
                                             {wallet.hasJettons && t('wallet_version_and_tokens')}
@@ -160,16 +173,17 @@ export const ChoseWalletVersions: FC<{
                         ))}
                     </ListBlockStyled>
                     <SubmitBlock>
-                        <Button
-                            size="large"
+                        <ButtonResponsiveSize
                             fullWidth
                             primary
                             disabled={!checkedVersions.length}
                             onClick={onSelect}
                             loading={isLoading}
+                            type="submit"
+                            autoFocus
                         >
                             {t('continue')}
-                        </Button>
+                        </ButtonResponsiveSize>
                     </SubmitBlock>
                 </>
             )}

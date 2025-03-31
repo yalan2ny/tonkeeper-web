@@ -29,6 +29,16 @@ export type DashboardColumn = {
     onlyPro: boolean;
 };
 
+export type DashboardRow = {
+    id: string;
+    cells: DashboardCell[];
+};
+
+export type DashboardRowNullable = {
+    id: string;
+    cells: (DashboardCell | null)[];
+};
+
 export type DashboardCell =
     | DashboardCellAccountName
     | DashboardCellString
@@ -81,55 +91,72 @@ export type DashboardCellNumericFiat = {
 export function toStringDashboardCell(cell: DashboardCell): string {
     switch (cell.type) {
         case 'account_name':
-            const walletBadge = walletBadgeText(cell.account, cell.walletId);
-            return (
-                cell.account.name +
-                ' ' +
-                cell.account.emoji +
-                (walletBadge ? ' ' + walletBadge : '')
-            );
+            return accountAndWalletToString(cell.account, cell.walletId);
         case 'string':
             return cell.value;
         case 'address':
-            return Address.parse(cell.raw).toString();
+            return Address.parse(cell.raw).toString({ bounceable: false });
         case 'numeric':
             return cell.value;
         case 'numeric_crypto':
             return cell.value.div(10 ** cell.decimals).toString() + ' ' + cell.symbol;
         case 'numeric_fiat':
             return cell.value.toString() + ' ' + cell.fiat;
+        default:
+            return assertUnreachable(cell);
     }
 }
 
-function walletBadgeText(account: Account, walletId: WalletId): string {
-    if (account.type === 'watch-only') {
-        return '(watch only)';
-    }
-    if (account.allTonWallets.length === 1) {
-        return '';
-    }
+function accountAndWalletToString(account: Account, walletId: WalletId): string {
+    const baseInfo = account.name + ' ' + account.emoji;
 
     switch (account.type) {
+        case 'watch-only':
+            return baseInfo + ' (watch only)';
         case 'ledger':
             const index = account.derivations.find(d =>
                 d.tonWallets.some(w => w.id === walletId)
             )?.index;
             if (index === undefined) {
-                return '';
+                return baseInfo;
             }
 
-            return '[' + (index + 1).toString() + ']';
+            return baseInfo + ' [' + (index + 1).toString() + ']';
+        case 'mam':
+            const derivation = account.derivations.find(d =>
+                d.tonWallets.some(w => w.id === walletId)
+            );
+            if (derivation === undefined) {
+                return baseInfo;
+            }
+
+            return (
+                derivation.name +
+                ' ' +
+                derivation.emoji +
+                ' [' +
+                (derivation.index + 1).toString() +
+                ']'
+            );
         case 'ton-only':
         case 'mnemonic':
-            const walletVersion = account.getTonWallet(walletId)?.version;
-            if (walletVersion === undefined) {
-                return '';
+        case 'testnet':
+        case 'sk':
+            if (account.allTonWallets.length === 1) {
+                return baseInfo;
             }
 
-            return walletVersionText(walletVersion);
-        case 'keystone':
-            return '';
-    }
+            const walletVersion = account.getTonWallet(walletId)?.version;
+            if (walletVersion === undefined) {
+                return baseInfo;
+            }
 
-    assertUnreachable(account);
+            return baseInfo + ' ' + walletVersionText(walletVersion);
+        case 'keystone':
+            return baseInfo;
+        case 'ton-multisig':
+            return baseInfo + ' ' + 'multisig';
+        default:
+            return assertUnreachable(account);
+    }
 }

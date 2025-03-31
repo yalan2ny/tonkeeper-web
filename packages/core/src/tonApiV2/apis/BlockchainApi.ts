@@ -25,8 +25,6 @@ import type {
   RawBlockchainConfig,
   ReducedBlocks,
   SendBlockchainMessageRequest,
-  ServiceStatus,
-  StatusDefaultResponse,
   Transaction,
   Transactions,
   Validators,
@@ -52,10 +50,6 @@ import {
     ReducedBlocksToJSON,
     SendBlockchainMessageRequestFromJSON,
     SendBlockchainMessageRequestToJSON,
-    ServiceStatusFromJSON,
-    ServiceStatusToJSON,
-    StatusDefaultResponseFromJSON,
-    StatusDefaultResponseToJSON,
     TransactionFromJSON,
     TransactionToJSON,
     TransactionsFromJSON,
@@ -72,6 +66,7 @@ export interface ExecGetMethodForBlockchainAccountRequest {
     accountId: string;
     methodName: string;
     args?: Array<string>;
+    fixOrder?: boolean;
 }
 
 export interface GetBlockchainAccountTransactionsRequest {
@@ -157,6 +152,7 @@ export interface BlockchainApiInterface {
      * @param {string} accountId account ID
      * @param {string} methodName contract get method name
      * @param {Array<string>} [args] 
+     * @param {boolean} [fixOrder] 
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof BlockchainApiInterface
@@ -407,19 +403,6 @@ export interface BlockchainApiInterface {
      */
     sendBlockchainMessage(requestParameters: SendBlockchainMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
 
-    /**
-     * Status
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof BlockchainApiInterface
-     */
-    statusRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ServiceStatus>>;
-
-    /**
-     * Status
-     */
-    status(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ServiceStatus>;
-
 }
 
 /**
@@ -482,6 +465,10 @@ export class BlockchainApi extends runtime.BaseAPI implements BlockchainApiInter
 
         if (requestParameters['args'] != null) {
             queryParameters['args'] = requestParameters['args'];
+        }
+
+        if (requestParameters['fixOrder'] != null) {
+            queryParameters['fix_order'] = requestParameters['fixOrder'];
         }
 
         const headerParameters: runtime.HTTPHeaders = {};
@@ -1068,32 +1055,6 @@ export class BlockchainApi extends runtime.BaseAPI implements BlockchainApiInter
      */
     async sendBlockchainMessage(requestParameters: SendBlockchainMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
         await this.sendBlockchainMessageRaw(requestParameters, initOverrides);
-    }
-
-    /**
-     * Status
-     */
-    async statusRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ServiceStatus>> {
-        const queryParameters: any = {};
-
-        const headerParameters: runtime.HTTPHeaders = {};
-
-        const response = await this.request({
-            path: `/v2/status`,
-            method: 'GET',
-            headers: headerParameters,
-            query: queryParameters,
-        }, initOverrides);
-
-        return new runtime.JSONApiResponse(response, (jsonValue) => ServiceStatusFromJSON(jsonValue));
-    }
-
-    /**
-     * Status
-     */
-    async status(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ServiceStatus> {
-        const response = await this.statusRaw(initOverrides);
-        return await response.value();
     }
 
 }

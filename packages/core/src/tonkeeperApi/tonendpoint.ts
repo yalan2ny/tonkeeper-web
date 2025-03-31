@@ -5,7 +5,7 @@ import { DAppTrack } from '../service/urlService';
 import { FetchAPI } from '../tonApiV2';
 
 export interface BootParams {
-    platform: 'ios' | 'android' | 'web' | 'desktop';
+    platform: 'ios' | 'android' | 'web' | 'desktop' | 'tablet' | 'swap_widget_web';
     lang: 'en' | 'ru' | string;
     build: string; // "2.8.0"
     network: Network;
@@ -31,6 +31,7 @@ export interface TonendpointConfig {
     exchangePostUrl?: string;
     supportLink?: string;
     tonkeeperNewsUrl?: string;
+    mam_learn_more_url?: string;
 
     mercuryoSecret?: string;
     neocryptoWebView?: string;
@@ -54,6 +55,8 @@ export interface TonendpointConfig {
 
     scam_api_url?: string;
 
+    mam_max_wallets_without_pro?: number;
+
     /**
      * @deprecated use ton api
      */
@@ -62,6 +65,38 @@ export interface TonendpointConfig {
      * @deprecated use ton api
      */
     tonEndpointAPIKey?: string;
+
+    multisig_help_url?: string;
+
+    multisig_about_url?: string;
+
+    batteryHost?: string;
+    batteryMeanFees?: string;
+    batteryMeanPrice_swap?: string;
+    batteryMeanPrice_jetton?: string;
+    batteryMeanPrice_nft?: string;
+    batteryRefundEndpoint?: string;
+    batteryReservedAmount?: string;
+    battery_beta?: boolean;
+    disable_battery?: boolean;
+    disable_battery_send?: boolean;
+    battery_packages?: {
+        value: number;
+        image: string;
+    }[];
+
+    /**
+     * "secret" flag name to determine if the app is on ios review
+     */
+    tablet_enable_additional_security?: boolean;
+
+    '2fa_public_key'?: string;
+    '2fa_api_url'?: string;
+    '2fa_tg_confirm_send_message_ttl_seconds'?: number;
+    '2fa_tg_linked_ttl_seconds'?: number;
+    '2fa_bot_url'?: string;
+
+    tron_api_url?: string;
 }
 
 const defaultTonendpoint = 'https://api.tonkeeper.com'; //  'http://localhost:1339';
@@ -133,9 +168,9 @@ export class Tonendpoint {
         return params.toString();
     };
 
-    boot = async (): Promise<TonendpointConfig> => {
+    boot = async (network: Network): Promise<TonendpointConfig> => {
         const response = await this.fetchApi(
-            `https://boot.tonkeeper.com/keys?${this.toSearchParams()}`,
+            `https://boot.tonkeeper.com/keys?${this.toSearchParams({ network })}`,
             {
                 method: 'GET'
             }
@@ -186,8 +221,11 @@ export class Tonendpoint {
     };
 }
 
-export const getServerConfig = async (tonendpoint: Tonendpoint): Promise<TonendpointConfig> => {
-    const result = await tonendpoint.boot();
+export const getServerConfig = async (
+    tonendpoint: Tonendpoint,
+    network: Network
+): Promise<TonendpointConfig> => {
+    const result = await tonendpoint.boot(network);
 
     return {
         flags: {},

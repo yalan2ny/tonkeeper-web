@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { localizationFrom } from '@tonkeeper/core/dist/entries/language';
-import { getApiConfig } from '@tonkeeper/core/dist/entries/network';
-import { WalletVersion } from "@tonkeeper/core/dist/entries/wallet";
+import { getApiConfig, Network } from '@tonkeeper/core/dist/entries/network';
+import { WalletVersion } from '@tonkeeper/core/dist/entries/wallet';
 import { InnerBody, useWindowsScroll } from '@tonkeeper/uikit/dist/components/Body';
 import { CopyNotification } from '@tonkeeper/uikit/dist/components/CopyNotification';
 import { Footer, FooterGlobalStyle } from '@tonkeeper/uikit/dist/components/Footer';
@@ -22,28 +22,25 @@ import {
     EditFavoriteNotification
 } from '@tonkeeper/uikit/dist/components/transfer/FavoriteNotification';
 import { AmplitudeAnalyticsContext, useTrackLocation } from '@tonkeeper/uikit/dist/hooks/amplitude';
-import {
-    AppContext,
-    IAppContext,
-} from '@tonkeeper/uikit/dist/hooks/appContext';
-import {
-    AfterImportAction,
-    AppSdkContext,
-    OnImportAction
-} from '@tonkeeper/uikit/dist/hooks/appSdk';
+import { AppContext, IAppContext } from '@tonkeeper/uikit/dist/hooks/appContext';
+import { AppSdkContext } from '@tonkeeper/uikit/dist/hooks/appSdk';
 import { useLock } from '@tonkeeper/uikit/dist/hooks/lock';
 import { StorageContext } from '@tonkeeper/uikit/dist/hooks/storage';
-import { I18nContext, TranslationContext } from '@tonkeeper/uikit/dist/hooks/translation';
+import {
+    I18nContext,
+    TranslationContext,
+    useTWithReplaces
+} from '@tonkeeper/uikit/dist/hooks/translation';
 import { AppRoute, SettingsRoute, any } from '@tonkeeper/uikit/dist/libs/routes';
 import { Unlock } from '@tonkeeper/uikit/dist/pages/home/Unlock';
 import { UnlockNotification } from '@tonkeeper/uikit/dist/pages/home/UnlockNotification';
 import Initialize, { InitializeContainer } from '@tonkeeper/uikit/dist/pages/import/Initialize';
 import { UserThemeProvider } from '@tonkeeper/uikit/dist/providers/UserThemeProvider';
-import { useUserFiatQuery } from "@tonkeeper/uikit/dist/state/fiat";
-import { useTonendpoint, useTonenpointConfig } from "@tonkeeper/uikit/dist/state/tonendpoint";
-import { useActiveAccountQuery, useAccountsStateQuery, useActiveTonNetwork } from "@tonkeeper/uikit/dist/state/wallet";
+import { useUserFiatQuery } from '@tonkeeper/uikit/dist/state/fiat';
+import { useTonendpoint, useTonenpointConfig } from '@tonkeeper/uikit/dist/state/tonendpoint';
+import { useActiveAccountQuery, useAccountsStateQuery } from '@tonkeeper/uikit/dist/state/wallet';
 import { Container, GlobalStyle } from '@tonkeeper/uikit/dist/styles/globalStyle';
-import React, { FC, PropsWithChildren, Suspense, useEffect, useMemo } from 'react';
+import React, { FC, PropsWithChildren, Suspense, useCallback, useEffect, useMemo } from 'react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import styled, { css } from 'styled-components';
 import browser from 'webextension-polyfill';
@@ -52,13 +49,16 @@ import { TonConnectSubscription } from './components/TonConnectSubscription';
 import { connectToBackground } from './event';
 import { ExtensionAppSdk } from './libs/appSdk';
 import { useAnalytics, useAppWidth } from './libs/hooks';
-import { useMutateUserLanguage } from "@tonkeeper/uikit/dist/state/language";
-import { useDevSettings } from "@tonkeeper/uikit/dist/state/dev";
-import { ModalsRoot } from "@tonkeeper/uikit/dist/components/ModalsRoot";
-import { Account } from "@tonkeeper/core/dist/entries/account";
-import { useDebuggingTools } from "@tonkeeper/uikit/dist/hooks/useDebuggingTools";
+import { useMutateUserLanguage } from '@tonkeeper/uikit/dist/state/language';
+import { useDevSettings } from '@tonkeeper/uikit/dist/state/dev';
+import { ModalsRoot } from '@tonkeeper/uikit/dist/components/ModalsRoot';
+import { Account } from '@tonkeeper/core/dist/entries/account';
+import { useDebuggingTools } from '@tonkeeper/uikit/dist/hooks/useDebuggingTools';
+import { useGlobalPreferencesQuery } from '@tonkeeper/uikit/dist/state/global-preferences';
+import { useGlobalSetup } from '@tonkeeper/uikit/dist/state/globalSetup';
+import { useRealtimeUpdatesInvalidation } from '@tonkeeper/uikit/dist/hooks/realtime';
+import { RedirectFromDesktopSettings } from "@tonkeeper/uikit/dist/pages/settings/RedirectFromDesktopSettings";
 
-const ImportRouter = React.lazy(() => import('@tonkeeper/uikit/dist/pages/import'));
 const Settings = React.lazy(() => import('@tonkeeper/uikit/dist/pages/settings'));
 const Browser = React.lazy(() => import('@tonkeeper/uikit/dist/pages/browser'));
 const Activity = React.lazy(() => import('@tonkeeper/uikit/dist/pages/activity/Activity'));
@@ -91,6 +91,7 @@ const PairKeystoneNotification = React.lazy(
 const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
+            staleTime: 30000,
             refetchOnWindowFocus: false
         }
     }
@@ -101,9 +102,12 @@ const TARGET_ENV = 'extension';
 connectToBackground();
 
 export const App: FC = () => {
+    const browserT = useCallback((key: string) => browser.i18n.getMessage(key), []);
+    const t = useTWithReplaces(browserT);
+
     const translation = useMemo(() => {
         const client: I18nContext = {
-            t: browser.i18n.getMessage,
+            t,
             i18n: {
                 enable: false,
                 reloadResources: async () => {},
@@ -113,7 +117,7 @@ export const App: FC = () => {
             }
         };
         return client;
-    }, []);
+    }, [t]);
 
     return (
         <QueryClientProvider client={queryClient}>
@@ -182,24 +186,38 @@ export const Loader: FC = React.memo(() => {
     const { data: fiat } = useUserFiatQuery();
     const { mutate: setLang } = useMutateUserLanguage();
     const { data: devSettings } = useDevSettings();
-    const network = useActiveTonNetwork();
+    const { isLoading: globalPreferencesLoading } = useGlobalPreferencesQuery();
+    const { isLoading: globalSetupLoading } = useGlobalSetup();
 
     useEffect(() => {
-        setLang(localizationFrom(browser.i18n.getUILanguage()))
+        setLang(localizationFrom(browser.i18n.getUILanguage()));
     }, [setLang]);
 
     const lock = useLock(sdk);
     const tonendpoint = useTonendpoint({
         targetEnv: TARGET_ENV,
         build: sdk.version,
-        network,
         lang: localizationFrom(browser.i18n.getUILanguage())
     });
-    const { data: config } = useTonenpointConfig(tonendpoint);
+    const { data: serverConfig } = useTonenpointConfig(tonendpoint);
 
-    const { data: tracker } = useAnalytics(sdk.storage, activeAccount || undefined, accounts, sdk.version);
+    const { data: tracker } = useAnalytics(
+        sdk.storage,
+        activeAccount || undefined,
+        accounts,
+        sdk.version
+    );
 
-    if (activeWalletLoading || isWalletsLoading || !config || lock === undefined || fiat === undefined || !devSettings) {
+    if (
+        activeWalletLoading ||
+        isWalletsLoading ||
+        !serverConfig ||
+        lock === undefined ||
+        fiat === undefined ||
+        !devSettings ||
+        globalPreferencesLoading ||
+        globalSetupLoading
+    ) {
         return (
             <FullSizeWrapper standalone={false}>
                 <Loading />
@@ -208,9 +226,11 @@ export const Loader: FC = React.memo(() => {
     }
 
     const context: IAppContext = {
-        api: getApiConfig(config, network),
+        mainnetApi: getApiConfig(serverConfig.mainnetConfig, Network.MAINNET),
+        testnetApi: getApiConfig(serverConfig.testnetConfig, Network.TESTNET),
         fiat,
-        config,
+        mainnetConfig: serverConfig.mainnetConfig,
+        testnetConfig: serverConfig.testnetConfig,
         tonendpoint,
         ios: false,
         standalone: true,
@@ -218,23 +238,24 @@ export const Loader: FC = React.memo(() => {
         proFeatures: false,
         hideQrScanner: true,
         hideSigner: true,
-        defaultWalletVersion: WalletVersion.V5R1
+        hideMam: true,
+        hideMultisig: true,
+        defaultWalletVersion: WalletVersion.V5R1,
+        env: {
+          tronApiKey: process.env.REACT_APP_TRON_API_KEY
+        }
     };
 
     return (
         <AmplitudeAnalyticsContext.Provider value={tracker}>
-            <OnImportAction.Provider value={sdk.openExtensionInBrowser}>
-                <AfterImportAction.Provider value={sdk.closeExtensionInBrowser}>
-                    <AppContext.Provider value={context}>
-                        <Content activeAccount={activeAccount} lock={lock} />
-                        <CopyNotification />
-                        <Suspense fallback={<></>}>
-                            <QrScanner />
-                        </Suspense>
-                        <ModalsRoot />
-                    </AppContext.Provider>
-                </AfterImportAction.Provider>
-            </OnImportAction.Provider>
+            <AppContext.Provider value={context}>
+                <Content activeAccount={activeAccount} lock={lock} />
+                <CopyNotification />
+                <Suspense fallback={<></>}>
+                    <QrScanner />
+                </Suspense>
+                <ModalsRoot />
+            </AppContext.Provider>
         </AmplitudeAnalyticsContext.Provider>
     );
 });
@@ -263,6 +284,7 @@ export const Content: FC<{
     useAppWidth();
     useTrackLocation();
     useDebuggingTools();
+    useRealtimeUpdatesInvalidation();
 
     if (lock) {
         return (
@@ -276,24 +298,9 @@ export const Content: FC<{
         return (
             <PageWrapper>
                 <Suspense fallback={<Loading />}>
-                    <Routes>
-                        <Route
-                            path={any(AppRoute.import)}
-                            element={
-                                <InitializeContainer fullHeight={false}>
-                                    <ImportRouter />
-                                </InitializeContainer>
-                            }
-                        />
-                        <Route
-                            path="*"
-                            element={
-                                <InitializeContainer>
-                                    <Initialize />
-                                </InitializeContainer>
-                            }
-                        />
-                    </Routes>
+                    <InitializeContainer>
+                        <Initialize />
+                    </InitializeContainer>
                 </Suspense>
             </PageWrapper>
         );
@@ -325,6 +332,10 @@ export const Content: FC<{
                             <Settings />
                         </Suspense>
                     }
+                />
+                <Route
+                  path={any(AppRoute.walletSettings)}
+                  element={<RedirectFromDesktopSettings />}
                 />
                 <Route path={AppRoute.coins}>
                     <Route

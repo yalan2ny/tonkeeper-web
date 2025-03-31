@@ -1,36 +1,31 @@
-import { Notification } from '../../Notification';
 import { FC } from 'react';
-import { createGlobalStyle, styled } from 'styled-components';
-import { Body2, Label1, Label2 } from '../../Text';
+import { styled } from 'styled-components';
 import { useTranslation } from '../../../hooks/translation';
-import { Button } from '../../fields/Button';
-import { ProDashboardIcon, ProMultisendIcon } from './Icons';
-import { ProNotification } from '../../pro/ProNotification';
-import { ProTrialStartNotification } from '../../pro/ProTrialStartNotification';
 import { useDisclosure } from '../../../hooks/useDisclosure';
 import { useProState } from '../../../state/pro';
+import { Notification } from '../../Notification';
+import { Body2, Label1, Label2 } from '../../Text';
+import { Button } from '../../fields/Button';
+import { ProNotification } from '../../pro/ProNotification';
+import { ProTrialStartNotification } from '../../pro/ProTrialStartNotification';
+import { ProDashboardIcon, ProMultisendIcon } from './Icons';
+import { HideOnReview } from '../../ios/HideOnReview';
+import { useAppPlatform } from '../../../hooks/appContext';
 
-const WrapperStyles = createGlobalStyle`
-      .pro-features-notification {
-        max-width: 768px;
-      }
-    `;
+const NotificationStyled = styled(Notification)`
+    max-width: 768px;
+`;
 
 export const ProFeaturesNotification: FC<{ isOpen: boolean; onClose: () => void }> = ({
     isOpen,
     onClose
 }) => {
     return (
-        <>
-            <WrapperStyles />
-            <Notification
-                isOpen={isOpen}
-                handleClose={onClose}
-                wrapperClassName="pro-features-notification"
-            >
+        <HideOnReview>
+            <NotificationStyled isOpen={isOpen} handleClose={onClose}>
                 {() => <ProFeaturesNotificationContent onClose={onClose} />}
-            </Notification>
-        </>
+            </NotificationStyled>
+        </HideOnReview>
     );
 };
 
@@ -39,6 +34,7 @@ const ContentWrapper = styled.div`
     flex-direction: column;
     align-items: center;
     padding-top: 40px;
+    overflow: hidden;
 `;
 
 const ProImage = styled.img`
@@ -65,6 +61,8 @@ const FeatureBlock = styled.div`
     flex-direction: column;
     text-align: center;
     align-items: center;
+    overflow: hidden;
+    max-width: 100%;
 
     > * {
         display: block;
@@ -175,9 +173,10 @@ const ButtonsBlock: FC<{ className?: string; onBuy: () => void; onTrial?: () => 
     onTrial
 }) => {
     const { t } = useTranslation();
+    const appPlatform = useAppPlatform();
     return (
         <ButtonsContainer className={className}>
-            {onTrial && (
+            {onTrial && appPlatform !== 'tablet' && (
                 <Button secondary onClick={onTrial}>
                     {t('pro_banner_start_trial')}
                 </Button>

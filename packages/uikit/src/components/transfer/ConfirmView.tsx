@@ -2,11 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Asset } from '@tonkeeper/core/dist/entries/crypto/asset/asset';
 import { AssetAmount } from '@tonkeeper/core/dist/entries/crypto/asset/asset-amount';
 import { TON_ASSET, TRON_USDT_ASSET } from '@tonkeeper/core/dist/entries/crypto/asset/constants';
-import {
-    RecipientData,
-    TransferEstimation,
-    isTonRecipientData
-} from '@tonkeeper/core/dist/entries/send';
+import { RecipientData, isTonRecipientData, Estimation } from '@tonkeeper/core/dist/entries/send';
 import React, {
     Children,
     FC,
@@ -23,23 +19,29 @@ import { useAppSdk } from '../../hooks/appSdk';
 import { formatFiatCurrency } from '../../hooks/balance';
 import { useTranslation } from '../../hooks/translation';
 import { useAssetAmountFiatEquivalent, useAssetImage } from '../../state/asset';
-import { CheckmarkCircleIcon, ChevronLeftIcon, ExclamationMarkCircleIcon } from '../Icon';
+import { CheckmarkCircleIcon, ExclamationMarkCircleIcon } from '../Icon';
 import { Gap } from '../Layout';
 import { ListBlock } from '../List';
 import {
     FullHeightBlockResponsive,
+    NotificationBackButton,
     NotificationCancelButton,
     NotificationTitleBlock
 } from '../Notification';
 import { Label2 } from '../Text';
 import { TransferComment } from '../activity/ActivityDetailsLayout';
 import { ActionFeeDetailsUniversal } from '../activity/NotificationCommon';
-import { RoundedButton } from '../fields/RoundedButton';
 import { Image, ImageMock, Info, SendingTitle, Title } from './Confirm';
 import { AmountListItem, RecipientListItem } from './ConfirmListItem';
 import { ButtonBlock, ConfirmMainButton, ConfirmMainButtonProps, ResultButton } from './common';
 import { UserCancelledError } from '../../libs/errors/UserCancelledError';
 import { TxConfirmationCustomError } from '../../libs/errors/TxConfirmationCustomError';
+import {
+    SenderChoiceUserAvailable,
+    SenderTypeUserAvailable
+} from '../../hooks/blockchain/useSender';
+import { NotEnoughBalanceError } from '@tonkeeper/core/dist/errors/NotEnoughBalanceError';
+import { NotEnoughBatteryBalanceError } from '@tonkeeper/core/dist/errors/NotEnoughBatteryBalanceError';
 
 type MutationProps = Pick<
     ReturnType<typeof useMutation<boolean, Error>>,
@@ -47,12 +49,11 @@ type MutationProps = Pick<
 >;
 
 type ConfirmViewContextValue = {
-    recipient: RecipientData;
+    recipient?: RecipientData;
     assetAmount: AssetAmount;
     estimation: {
-        data: TransferEstimation | undefined;
+        data: Pick<Estimation, 'fee'> | undefined;
         isLoading: boolean;
-        isFetching: boolean;
     };
     formState: {
         done: boolean;
@@ -73,15 +74,18 @@ export function useConfirmViewContext() {
 
 type ConfirmViewProps<T extends Asset> = PropsWithChildren<
     {
-        recipient: RecipientData;
+        className?: string;
+        recipient?: RecipientData;
         assetAmount: AssetAmount<T>;
         onBack?: () => void;
         onClose: (confirmed?: boolean) => void;
         fitContent?: boolean;
+        onSenderTypeChange?: (type: SenderTypeUserAvailable) => void;
+        availableSendersChoices?: SenderChoiceUserAvailable[];
+        selectedSenderType?: SenderTypeUserAvailable;
         estimation: {
-            data: TransferEstimation<T> | undefined;
+            data: Pick<Estimation<T>, 'fee'> | undefined;
             isLoading: boolean;
-            isFetching: boolean;
             error?: Error | null;
         };
     } & MutationProps
@@ -95,6 +99,10 @@ export function ConfirmView<T extends Asset = Asset>({
     onClose,
     assetAmount,
     fitContent,
+    className,
+    onSenderTypeChange,
+    selectedSenderType,
+    availableSendersChoices,
     ...mutation
 }: ConfirmViewProps<T>) {
     const { mutateAsync, isLoading, reset } = mutation;
@@ -116,10 +124,15 @@ export function ConfirmView<T extends Asset = Asset>({
         <ConfirmViewDetailsSlot>
             <ConfirmViewDetailsRecipient />
             <ConfirmViewDetailsAmount />
-            <ConfirmViewDetailsFee />
+            <ConfirmViewDetailsFee
+                onSenderTypeChange={onSenderTypeChange}
+                selectedSenderType={selectedSenderType}
+                availableSendersChoices={availableSendersChoices}
+            />
             <ConfirmViewDetailsComment />
         </ConfirmViewDetailsSlot>
     );
+    let additionalDetails = <ConfirmViewAdditionalBottomSlot />;
     let buttons = (
         <ConfirmViewButtonsSlot>
             <ConfirmViewButtons MainButton={ConfirmMainButton} />
@@ -137,6 +150,9 @@ export function ConfirmView<T extends Asset = Asset>({
                     return;
                 case ConfirmViewDetailsSlot:
                     details = child;
+                    return;
+                case ConfirmViewAdditionalBottomSlot:
+                    additionalDetails = child;
                     return;
                 case ConfirmViewButtonsSlot:
                     buttons = child;
@@ -170,7 +186,6 @@ export function ConfirmView<T extends Asset = Asset>({
     const onSubmit: React.FormEventHandler<HTMLFormElement> = async e => {
         e.stopPropagation();
         e.preventDefault();
-        handleSubmit();
     };
 
     return (
@@ -189,12 +204,14 @@ export function ConfirmView<T extends Asset = Asset>({
                 onSubmit={onSubmit}
                 standalone={standalone}
                 fitContent={fitContent}
+                className={className}
             >
                 {titleBlock}
                 {heading}
                 <ListBlock margin={false} fullWidth>
                     {details}
                 </ListBlock>
+                {additionalDetails}
                 <Gap />
 
                 <ButtonBlock>{buttons}</ButtonBlock>
@@ -212,13 +229,7 @@ export const ConfirmViewTitle: FC<PropsWithChildren> = () => {
     const { onClose, onBack } = useConfirmViewContext();
     return (
         <NotificationTitleBlock>
-            {onBack ? (
-                <RoundedButton onClick={onBack}>
-                    <ChevronLeftIcon />
-                </RoundedButton>
-            ) : (
-                <div />
-            )}
+            {onBack ? <NotificationBackButton onBack={onBack} /> : <div />}
             <NotificationCancelButton handleClose={() => onClose()} />
         </NotificationTitleBlock>
     );
@@ -242,24 +253,36 @@ export const ConfirmViewHeading: FC<PropsWithChildren<{ className?: string; titl
         [TRON_USDT_ASSET.id]: t('txActions_USDT_transfer')
     };
 
-    title ||= isTonRecipientData(recipient)
-        ? recipient.toAccount.name
-        : fallbackTitles[assetAmount.asset.id] || t('txActions_signRaw_types_jettonTransfer');
+    title ||=
+        recipient && isTonRecipientData(recipient)
+            ? recipient.toAccount.name
+            : fallbackTitles[assetAmount.asset.id] || t('txActions_signRaw_types_jettonTransfer');
 
-    const icon = isTonRecipientData(recipient) ? recipient.toAccount.icon || image : image;
+    const icon =
+        recipient && isTonRecipientData(recipient) ? recipient.toAccount.icon || image : image;
     return (
         <Info className={className}>
-            {icon ? <Image full src={image} /> : <ImageMock full />}
+            {icon ? (
+                <Image $noBorders={assetAmount.asset.id === TRON_USDT_ASSET.id} full src={image} />
+            ) : (
+                <ImageMock full />
+            )}
             <SendingTitle>{t('confirm_sending_title')}</SendingTitle>
             <Title>{title}</Title>
         </Info>
     );
 };
 
+export const ConfirmViewAdditionalBottomSlot: FC<PropsWithChildren> = ({ children }) => (
+    <>{children}</>
+);
 export const ConfirmViewDetailsSlot: FC<PropsWithChildren> = ({ children }) => <>{children}</>;
 
 export const ConfirmViewDetailsRecipient: FC = () => {
     const { recipient } = useConfirmViewContext();
+    if (!recipient) {
+        return null;
+    }
     return <RecipientListItem recipient={recipient} />;
 };
 
@@ -278,16 +301,25 @@ export const ConfirmViewDetailsAmount: FC = () => {
     );
 };
 
-export const ConfirmViewDetailsFee: FC = () => {
+export const ConfirmViewDetailsFee: FC<{
+    onSenderTypeChange?: (type: SenderTypeUserAvailable) => void;
+    availableSendersChoices?: SenderChoiceUserAvailable[];
+    selectedSenderType?: SenderTypeUserAvailable;
+}> = ({ onSenderTypeChange, availableSendersChoices, selectedSenderType }) => {
     const { estimation } = useConfirmViewContext();
 
     return (
-        <ActionFeeDetailsUniversal fee={estimation.isFetching ? undefined : estimation.data?.fee} />
+        <ActionFeeDetailsUniversal
+            fee={estimation.isLoading ? undefined : estimation.data?.fee}
+            onSenderTypeChange={onSenderTypeChange}
+            availableSendersChoices={availableSendersChoices}
+            selectedSenderType={selectedSenderType}
+        />
     );
 };
 export const ConfirmViewDetailsComment: FC = () => {
     const { recipient } = useConfirmViewContext();
-    if (!isTonRecipientData(recipient)) {
+    if (!recipient || !isTonRecipientData(recipient)) {
         return null;
     }
     return <TransferComment comment={recipient.comment} />;
@@ -316,7 +348,7 @@ export const ConfirmViewButtons: FC<{
 
     const {
         formState: { done, error, isLoading },
-        estimation: { isFetching: estimationLoading },
+        estimation: { isLoading: estimationLoading },
         onClose,
         handleSubmit
     } = useConfirmViewContext();
@@ -346,14 +378,27 @@ export const ConfirmViewButtons: FC<{
     }
 
     if (error && !(error instanceof UserCancelledError)) {
+        let errorText;
+
+        switch (true) {
+            case error instanceof TxConfirmationCustomError:
+                errorText = error.message;
+                break;
+            case error instanceof NotEnoughBalanceError:
+                errorText = t('confirm_error_insufficient_balance', {
+                    balance: (error as NotEnoughBalanceError).balance.stringAssetRelativeAmount,
+                    required: (error as NotEnoughBalanceError).requiredBalance
+                        .stringAssetRelativeAmount
+                });
+                break;
+            case error instanceof NotEnoughBatteryBalanceError:
+                errorText = t('confirm_error_insufficient_battery_balance');
+        }
+
         return (
             <ResultErrorButtonStyled>
                 <ExclamationMarkCircleIconStyled />
-                <ErrorLabelStyled>
-                    {error instanceof TxConfirmationCustomError
-                        ? error.message
-                        : t('send_publish_tx_error')}
-                </ErrorLabelStyled>
+                <ErrorLabelStyled>{errorText}</ErrorLabelStyled>
             </ResultErrorButtonStyled>
         );
     }

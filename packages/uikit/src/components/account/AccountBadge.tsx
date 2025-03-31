@@ -3,17 +3,39 @@ import { WalletId, WalletVersion, walletVersionText } from '@tonkeeper/core/dist
 import { FC, PropsWithChildren } from 'react';
 import styled from 'styled-components';
 import { Badge } from '../shared';
+import { assertUnreachable } from '@tonkeeper/core/dist/utils/types';
+import { Network } from '@tonkeeper/core/dist/entries/network';
+
+export const NetworkBadge: FC<
+    PropsWithChildren<{
+        network: Network;
+        size?: 's' | 'm';
+        className?: string;
+        marginLeft?: string;
+    }>
+> = ({ network, size = 'm', className, children, marginLeft }) => {
+    if (network === Network.TESTNET) {
+        return (
+            <Badge size={size} color="accentRed" className={className} marginLeft={marginLeft}>
+                {children || 'Testnet'}
+            </Badge>
+        );
+    }
+
+    return null;
+};
 
 export const AccountBadge: FC<
     PropsWithChildren<{
         accountType: Account['type'];
         size?: 's' | 'm';
         className?: string;
+        marginLeft?: string;
     }>
-> = ({ accountType, size = 'm', className, children }) => {
+> = ({ accountType, size = 'm', className, children, marginLeft }) => {
     if (accountType === 'ledger') {
         return (
-            <Badge size={size} color="accentGreen" className={className}>
+            <Badge size={size} color="accentPurple" className={className} marginLeft={marginLeft}>
                 {children || 'Ledger'}
             </Badge>
         );
@@ -21,7 +43,7 @@ export const AccountBadge: FC<
 
     if (accountType === 'ton-only') {
         return (
-            <Badge size={size} color="accentPurple" className={className}>
+            <Badge size={size} color="accentPurple" className={className} marginLeft={marginLeft}>
                 {children || 'Signer'}
             </Badge>
         );
@@ -29,7 +51,7 @@ export const AccountBadge: FC<
 
     if (accountType === 'keystone') {
         return (
-            <Badge size={size} color="accentOrange" className={className}>
+            <Badge size={size} color="accentPurple" className={className} marginLeft={marginLeft}>
                 {children || 'Keystone'}
             </Badge>
         );
@@ -37,8 +59,29 @@ export const AccountBadge: FC<
 
     if (accountType === 'watch-only') {
         return (
-            <Badge size={size} color="accentRed" className={className}>
+            <Badge size={size} color="accentOrange" className={className} marginLeft={marginLeft}>
                 {children || 'Watch Only'}
+            </Badge>
+        );
+    }
+
+    if (accountType === 'mam') {
+        return (
+            <Badge
+                size={size}
+                color="accentBlueConstant"
+                className={className}
+                marginLeft={marginLeft}
+            >
+                {children || 'Multi'}
+            </Badge>
+        );
+    }
+
+    if (accountType === 'ton-multisig') {
+        return (
+            <Badge size={size} color="accentGreen" className={className} marginLeft={marginLeft}>
+                {children || 'Multisig'}
             </Badge>
         );
     }
@@ -50,13 +93,15 @@ export const WalletVersionBadge: FC<{
     walletVersion: WalletVersion;
     size?: 's' | 'm';
     className?: string;
-}> = ({ walletVersion, size = 'm', className }) => {
+    marginLeft?: string;
+}> = ({ walletVersion, size = 'm', className, marginLeft }) => {
     return (
         <Badge
             size={size}
             background="backgroundContentAttention"
             color="textSecondary"
             className={className}
+            marginLeft={marginLeft}
         >
             {walletVersionText(walletVersion)}
         </Badge>
@@ -67,14 +112,36 @@ export const WalletIndexBadge: FC<
     PropsWithChildren<{
         size?: 's' | 'm';
         className?: string;
+        marginLeft?: string;
     }>
-> = ({ size = 'm', className, children }) => {
+> = ({ size = 'm', className, children, marginLeft }) => {
     return (
         <Badge
             size={size}
             background="backgroundContentAttention"
             color="textSecondary"
             className={className}
+            marginLeft={marginLeft}
+        >
+            {children}
+        </Badge>
+    );
+};
+
+export const AssetBlockchainBadge: FC<
+    PropsWithChildren<{
+        size?: 's' | 'm';
+        className?: string;
+        marginLeft?: string;
+    }>
+> = ({ size = 'm', className, children, marginLeft }) => {
+    return (
+        <Badge
+            size={size}
+            background="backgroundContentTint"
+            color="textSecondary"
+            className={className}
+            marginLeft={marginLeft}
         >
             {children}
         </Badge>
@@ -132,7 +199,10 @@ export const AccountAndWalletBadgesGroup: FC<{
         return <AccountBadge className={className} size={size} accountType={account.type} />;
     }
 
-    if (account.type === 'mnemonic' && account.tonWallets.length > 1) {
+    if (
+        (account.type === 'mnemonic' || account.type === 'testnet' || account.type === 'sk') &&
+        account.tonWallets.length > 1
+    ) {
         const wallet = account.tonWallets.find(w => w.id === walletId);
         if (wallet) {
             return (
@@ -145,5 +215,25 @@ export const AccountAndWalletBadgesGroup: FC<{
         }
     }
 
-    return null;
+    if (account.type === 'mam') {
+        const derivation = account.derivations.find(d => d.tonWallets.some(w => w.id === walletId));
+        return (
+            <Container className={className}>
+                <AccountBadge size={size} accountType={account.type} />
+                {!!derivation && (
+                    <WalletIndexBadge size={size}>#{derivation.index + 1}</WalletIndexBadge>
+                )}
+            </Container>
+        );
+    }
+
+    if (account.type === 'ton-multisig') {
+        return <AccountBadge className={className} size={size} accountType={account.type} />;
+    }
+
+    if (account.type === 'mnemonic' || account.type === 'testnet' || account.type === 'sk') {
+        return null;
+    }
+
+    assertUnreachable(account);
 };

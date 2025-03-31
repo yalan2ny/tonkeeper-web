@@ -8,9 +8,17 @@ export interface DAppManifest {
     privacyPolicyUrl?: string;
 }
 
+export enum TON_CONNECT_MSG_VARIANTS_ID {
+    BATTERY = 'battery',
+    GASLESS = 'gasless'
+}
+
 export interface TonConnectTransactionPayload {
     valid_until: number; // 1658253458;
     messages: TonConnectTransactionPayloadMessage[];
+    messagesVariants?: Partial<
+        Record<TON_CONNECT_MSG_VARIANTS_ID, TonConnectTransactionPayloadMessage[]>
+    >;
 }
 
 export interface TonConnectTransactionPayloadMessage {
@@ -18,6 +26,9 @@ export interface TonConnectTransactionPayloadMessage {
     amount: string | number;
     payload?: string; // base64 cell
     stateInit?: string; // base64 cell
+    extra_currency?: {
+        [k: number]: string;
+    };
 }
 
 export type TonConnectAccount = {
@@ -51,13 +62,15 @@ export interface ConnectEventError {
     };
 }
 
+export interface TonConnectEventPayload {
+    items: ConnectItemReply[];
+    device: DeviceInfo;
+}
+
 export interface ConnectEventSuccess {
     event: 'connect';
     id: number;
-    payload: {
-        items: ConnectItemReply[];
-        device: DeviceInfo;
-    };
+    payload: TonConnectEventPayload;
 }
 
 export type ConnectItem = TonAddressItem | TonProofItem;
@@ -161,6 +174,7 @@ export enum SEND_TRANSACTION_ERROR_CODES {
 export type SendTransactionFeature = {
     name: 'SendTransaction';
     maxMessages: number;
+    extraCurrencySupported?: boolean;
 };
 
 export type SendTransactionFeatureDeprecated = 'SendTransaction';
@@ -237,7 +251,7 @@ export interface TonAddressItemReply {
     address: string;
     network: string;
     walletStateInit: string;
-    publicKey: string;
+    publicKey?: string;
 }
 
 export interface TonProofItem {
@@ -297,4 +311,10 @@ export interface TonConnectMessageRequest {
     message: string;
     from: string;
     connection: AccountConnection;
+}
+
+export interface SendTransactionAppRequest {
+    id: string;
+    connection: AccountConnection;
+    payload: TonConnectTransactionPayload;
 }

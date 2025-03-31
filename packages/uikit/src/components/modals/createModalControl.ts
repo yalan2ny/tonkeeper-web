@@ -2,7 +2,7 @@
 import { atom, useAtom } from '../../libs/atom';
 import { useCallback } from 'react';
 
-export const createModalControl = <T extends object = object>() => {
+export const createModalControl = <T = object>() => {
     const paramsControl = atom<T | undefined>(undefined);
     const isOpenControl = atom(false);
 
@@ -18,7 +18,7 @@ export const createModalControl = <T extends object = object>() => {
                         setParams(p);
                         setIsOpen(true);
                     },
-                    [setParams, setParams]
+                    [setParams, setIsOpen]
                 ),
                 onClose: useCallback(() => setIsOpen(false), [setIsOpen])
             };

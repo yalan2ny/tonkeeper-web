@@ -1,5 +1,5 @@
 import React, { FC, useEffect } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { useAppSdk } from '../hooks/appSdk';
 import { InnerBody } from './Body';
 import { ActivityHeader, BrowserHeader, SettingsHeader } from './Header';
@@ -7,12 +7,15 @@ import { ActionsRow } from './home/Actions';
 import { BalanceSkeleton } from './home/Balance';
 import { CoinInfoSkeleton } from './jettons/Info';
 import { ColumnText } from './Layout';
-import { ListBlock, ListItem, ListItemPayload } from './List';
+import { ListBlock, ListBlockDesktopAdaptive, ListItem, ListItemPayload } from './List';
 import { SubHeader } from './SubHeader';
 import { H3 } from './Text';
 import { SkeletonImage, SkeletonText } from './shared/Skeleton';
 import { randomIntFromInterval } from '../libs/common';
 import { RecommendationsPageBodySkeleton } from './skeletons/BrowserSkeletons';
+import { useTranslation } from '../hooks/translation';
+import { NotificationBlock, NotificationFooter, NotificationFooterPortal } from './Notification';
+import { Button } from './fields/Button';
 
 export const SkeletonSubHeader = React.memo(() => {
     return <SubHeader title={<SkeletonText size="large" />} />;
@@ -83,6 +86,25 @@ export const SkeletonListPayload = React.memo(() => {
                 ></ColumnText>
             </ListItemBlock>
         </ListItemPayload>
+    );
+});
+
+export const SkeletonListDesktopAdaptive: FC<{
+    size?: number;
+    margin?: boolean;
+    fullWidth?: boolean;
+    className?: string;
+}> = React.memo(({ size = 1, margin, fullWidth, className }) => {
+    return (
+        <ListBlockDesktopAdaptive margin={margin} fullWidth={fullWidth} className={className}>
+            {Array(size)
+                .fill(null)
+                .map((_, index) => (
+                    <ListItem key={index} hover={false}>
+                        <SkeletonListPayload />
+                    </ListItem>
+                ))}
+        </ListBlockDesktopAdaptive>
     );
 });
 
@@ -245,3 +267,49 @@ export const HomeSkeleton = React.memo(() => {
         </>
     );
 });
+
+const ButtonGap = styled.div`
+    ${props =>
+        props.theme.displayType === 'full-width'
+            ? css`
+                  height: 1rem;
+              `
+            : css`
+                  display: none;
+              `}
+`;
+
+const ButtonRowStyled = styled.div`
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+
+    & > * {
+        flex: 1;
+    }
+`;
+
+export const NotificationSkeleton: FC<{ handleClose: (result?: string) => void }> = ({
+    handleClose
+}) => {
+    const { t } = useTranslation();
+
+    return (
+        <NotificationBlock>
+            <SkeletonListWithImages size={3} margin fullWidth />
+            <ButtonGap />
+            <NotificationFooterPortal>
+                <NotificationFooter>
+                    <ButtonRowStyled>
+                        <Button size="large" type="button" onClick={() => handleClose()}>
+                            {t('notifications_alert_cancel')}
+                        </Button>
+                        <Button size="large" type="submit" primary loading>
+                            {t('confirm')}
+                        </Button>
+                    </ButtonRowStyled>
+                </NotificationFooter>
+            </NotificationFooterPortal>
+        </NotificationBlock>
+    );
+};

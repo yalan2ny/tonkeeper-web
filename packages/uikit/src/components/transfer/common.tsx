@@ -1,23 +1,34 @@
-import { QueryClient } from '@tanstack/react-query';
 import { IAppSdk } from '@tonkeeper/core/dist/AppSdk';
 import { BLOCKCHAIN_NAME } from '@tonkeeper/core/dist/entries/crypto';
-import { jettonToTonAsset } from '@tonkeeper/core/dist/entries/crypto/asset/ton-asset';
-import { TonRecipientData } from '@tonkeeper/core/dist/entries/send';
-import { TonTransferParams } from '@tonkeeper/core/dist/service/deeplinkingService';
-import { seeIfBalanceError, seeIfTimeError } from '@tonkeeper/core/dist/service/transfer/common';
+import { tokenToTonAsset } from '@tonkeeper/core/dist/entries/crypto/asset/ton-asset';
+import {
+    RecipientData,
+    TonRecipientData,
+    TronRecipientData
+} from '@tonkeeper/core/dist/entries/send';
+import {
+    TonTransferParams,
+    TronTransferParams
+} from '@tonkeeper/core/dist/service/deeplinkingService';
 import { Account, JettonsBalances } from '@tonkeeper/core/dist/tonApiV2';
 import React, { FC, PropsWithChildren } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 import { useAppContext } from '../../hooks/appContext';
 import { useTranslation } from '../../hooks/translation';
-import { ChevronLeftIcon } from '../Icon';
-import { NotificationCancelButton, NotificationTitleBlock } from '../Notification';
+import {
+    NotificationBackButton,
+    NotificationCancelButton,
+    NotificationTitleBlock
+} from '../Notification';
 import { Body1, H3 } from '../Text';
-import { RoundedButton, ButtonMock } from '../fields/RoundedButton';
+import { ButtonMock } from '../fields/RoundedButton';
 import { Button } from '../fields/Button';
 import { Center, Title } from './amountView/AmountViewUI';
 import { AmountState } from './amountView/amountState';
 import { useIsActiveWalletLedger } from '../../state/ledger';
+import { AssetAmount } from '@tonkeeper/core/dist/entries/crypto/asset/asset-amount';
+import { formatAddress, seeIfValidTonAddress } from '@tonkeeper/core/dist/utils/common';
+import { useIsActiveAccountMultisig } from '../../state/multisig';
 
 export const duration = 300;
 export const timingFunction = 'ease-in-out';
@@ -160,7 +171,13 @@ export const ButtonBlock = React.forwardRef<HTMLDivElement, PropsWithChildren>(
 );
 ButtonBlock.displayName = 'ButtonBlock';
 
-export const MainButton = ({ isLoading, onClick }: { isLoading: boolean; onClick: () => void }) => {
+export const MainButton = ({
+    isLoading,
+    onClick
+}: {
+    isLoading?: boolean;
+    onClick: () => void;
+}) => {
     const { t } = useTranslation();
 
     return (
@@ -223,6 +240,7 @@ export type ConfirmMainButtonProps = (props: {
 export const ConfirmMainButton: ConfirmMainButtonProps = ({ isLoading, isDisabled, onClick }) => {
     const { t } = useTranslation();
     const isLedger = useIsActiveWalletLedger();
+    const isMultisig = useIsActiveAccountMultisig();
     return (
         <Button
             fullWidth
@@ -233,7 +251,13 @@ export const ConfirmMainButton: ConfirmMainButtonProps = ({ isLoading, isDisable
             loading={isLoading}
             onClick={onClick}
         >
-            {t(isLedger ? 'ledger_continue_with_ledger' : 'confirm_sending_submit')}
+            {t(
+                isLedger
+                    ? 'ledger_continue_with_ledger'
+                    : isMultisig
+                    ? 'confirm_sending_sign'
+                    : 'confirm_sending_submit'
+            )}
         </Button>
     );
 };
@@ -266,13 +290,27 @@ export const ConfirmAndCancelMainButton: ConfirmMainButtonProps = ({
     );
 };
 
-export const RecipientHeaderBlock: FC<{ title: string; onClose: () => void }> = ({
+export const TransferViewHeaderBlock: FC<{ title: string; onClose: () => void }> = ({
     title,
     onClose
 }) => {
     return (
         <NotificationTitleBlock>
             <ButtonMock />
+            <H3>{title}</H3>
+            <NotificationCancelButton handleClose={onClose} />
+        </NotificationTitleBlock>
+    );
+};
+
+export const RecipientHeaderBlock: FC<{
+    title: string;
+    onClose: () => void;
+    onBack?: () => void;
+}> = ({ title, onClose, onBack }) => {
+    return (
+        <NotificationTitleBlock>
+            {onBack ? <NotificationBackButton onBack={onBack} /> : <ButtonMock />}
             <H3>{title}</H3>
             <NotificationCancelButton handleClose={onClose} />
         </NotificationTitleBlock>
@@ -290,9 +328,7 @@ export const AmountHeaderBlock: AmountHeaderBlockComponent = ({ onBack, onClose,
     const { t } = useTranslation();
     return (
         <NotificationTitleBlock>
-            <RoundedButton onClick={onBack}>
-                <ChevronLeftIcon />
-            </RoundedButton>
+            <NotificationBackButton onBack={onBack} />
             <Center>
                 <Title>{t('txActions_amount')}</Title>
                 {children}
@@ -324,12 +360,15 @@ export const childFactoryCreator = (right: boolean) => (child: React.ReactElemen
         isAnimating: true
     });
 
-export const notifyError = async (
-    client: QueryClient,
-    sdk: IAppSdk,
-    t: (value: string) => string,
-    error: unknown
-) => {
+const seeIfTimeError = (e: unknown): e is Error => {
+    return e instanceof Error && e.message.startsWith('Time and date are incorrect');
+};
+
+const seeIfBalanceError = (e: unknown): e is Error => {
+    return e instanceof Error && e.message.startsWith('Not enough account');
+};
+
+export const notifyError = async (sdk: IAppSdk, t: (value: string) => string, error: unknown) => {
     if (seeIfBalanceError(error)) {
         sdk.uiEvents.emit('copy', {
             method: 'copy',
@@ -345,26 +384,31 @@ export const notifyError = async (
 };
 
 export interface InitTransferData {
-    initRecipient?: TonRecipientData;
+    initRecipient?: RecipientData;
     initAmountState?: Partial<AmountState>;
 }
 
-export const getInitData = (
+export const makeTonTransferInitData = (
     tonTransfer: TonTransferParams,
+    fromAccount: Account,
     toAccount: Account,
     jettons: JettonsBalances | undefined
 ): InitTransferData => {
+    const address =
+        tonTransfer.address && seeIfValidTonAddress(tonTransfer.address)
+            ? tonTransfer.address
+            : formatAddress(toAccount.address);
     const initRecipient: TonRecipientData = {
         address: {
             blockchain: BLOCKCHAIN_NAME.TON,
-            address: tonTransfer.address
+            address
         },
         toAccount,
         comment: tonTransfer.text ?? '',
         done: toAccount.memoRequired ? tonTransfer.text !== '' && tonTransfer.text !== null : true
     };
 
-    const { initAmountState } = getJetton(tonTransfer.jetton, jettons);
+    const initAmountState = makeTransferInitAmountState(tonTransfer, fromAccount, jettons);
 
     return {
         initRecipient,
@@ -372,20 +416,57 @@ export const getInitData = (
     };
 };
 
-export const getJetton = (
-    asset: string | undefined,
-    jettons: JettonsBalances | undefined
-): InitTransferData => {
-    try {
-        if (asset) {
-            const token = jettonToTonAsset(asset, jettons || { balances: [] });
+export const makeTronTransferInitData = (tronTransfer: TronTransferParams): InitTransferData => {
+    if (!tronTransfer.address) {
+        return {};
+    }
+    const initRecipient: TronRecipientData = {
+        address: {
+            blockchain: BLOCKCHAIN_NAME.TRON,
+            address: tronTransfer.address
+        },
+        done: true
+    };
 
+    // TODO tron: is it safe to parse and paste amount?
+    // TODO tron: amount asset is not specified, do user might be confused transferring usdt instead of TRX
+    // const initAmountState = makeTransferInitAmountState(tonTransfer, fromAccount, jettons);
+
+    return {
+        initRecipient
+    };
+};
+
+export const makeTransferInitAmountState = (
+    transfer: Pick<TonTransferParams, 'amount' | 'jetton'>,
+    account: Account | undefined,
+    jettons: JettonsBalances | undefined
+): Partial<AmountState> => {
+    try {
+        const token = tokenToTonAsset(
+            transfer.jetton || 'TON',
+            account,
+            jettons || { balances: [] }
+        );
+
+        if (!transfer.amount) {
             return {
-                initAmountState: { token: token }
+                token
             };
         }
+
+        const assetAmount = new AssetAmount({
+            asset: token,
+            weiAmount: transfer.amount || '0'
+        });
+
+        return {
+            coinValue: assetAmount.relativeAmount,
+            token,
+            inFiat: false,
+            isMax: false
+        };
     } catch {
         return {};
     }
-    return {};
 };

@@ -1,42 +1,74 @@
-import { mnemonicValidate } from '@ton/crypto';
 import { wordlist } from '@ton/crypto/dist/mnemonic/wordlist';
 import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import styled, { css } from 'styled-components';
 import { useAppContext } from '../../hooks/appContext';
 import { useAppSdk } from '../../hooks/appSdk';
 import { openIosKeyboard } from '../../hooks/ios';
 import { useTranslation } from '../../hooks/translation';
-import { AppRoute } from '../../libs/routes';
-import { BackButtonBlock } from '../BackButton';
 import { CenterContainer } from '../Layout';
-import { Body1, Body2, H2 } from '../Text';
-import { Button } from '../fields/Button';
+import { Body1, Body2, Body2Class, Body3, H2Label2Responsive, Label2 } from '../Text';
+import { Button, ButtonResponsiveSize } from '../fields/Button';
+import { BorderSmallResponsive } from '../shared/Styles';
+import { ExclamationMarkCircleIcon } from '../Icon';
+import { validateMnemonicTonOrMAM } from '@tonkeeper/core/dist/service/mnemonicService';
+import { ToggleButton, ToggleButtonItem } from '../shared/ToggleButton';
+import { useActiveConfig } from '../../state/wallet';
+import { hexToRGBA } from '../../libs/css';
+import { handleSubmit } from '../../libs/form';
 
 const Block = styled.div`
     display: flex;
     text-align: center;
     gap: 1rem;
     flex-direction: column;
+    margin-bottom: 16px;
 
     & + & {
         margin-top: 2rem;
     }
 `;
 
-const Header = styled(H2)`
-    user-select: none;
+const BlockSmallGap = styled(Block)`
+    ${p =>
+        p.theme.displayType === 'full-width' &&
+        css`
+            gap: 8px;
+        `}
 `;
+
+const BottomButtonBlock = styled(Block)`
+    margin-bottom: 0;
+`;
+
+const HeadingBlock = styled(Block)`
+    ${p =>
+        p.theme.displayType === 'full-width' &&
+        css`
+            gap: 2px;
+        `}
+`;
+
 const Body = styled(Body1)`
     user-select: none;
 
     text-align: center;
     color: ${props => props.theme.textSecondary};
+
+    ${p =>
+        p.theme.displayType === 'full-width' &&
+        css`
+            ${Body2Class};
+            max-width: 450px;
+            display: block;
+            margin: 0 auto;
+        `}
+
+    text-wrap: balance;
 `;
 
-export const WorldsGrid = styled.div`
+export const WorldsGrid = styled.div<{ wordsNumber: 12 | 24 }>`
     display: grid;
-    grid-template-rows: repeat(12, minmax(0, 1fr));
+    grid-template-rows: repeat(${p => p.wordsNumber / 2}, minmax(0, 1fr));
     grid-auto-flow: column;
     gap: 0.5rem;
     place-content: space-evenly;
@@ -44,8 +76,6 @@ export const WorldsGrid = styled.div`
 
     white-space: normal;
 `;
-
-const World = styled(Body1)``;
 
 export const WorldNumber = styled(Body2)`
     display: inline-block;
@@ -70,11 +100,145 @@ export const ButtonRow = styled.div`
     display: flex;
 `;
 
-export const Worlds: FC<{
+const WorldsGridStyled = styled(WorldsGrid)`
+    margin-top: 0;
+`;
+
+const MamAccountCallout = styled.div`
+    background: ${p => p.theme.backgroundContent};
+    ${BorderSmallResponsive};
+    padding: 8px 12px;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+`;
+
+const TronAccountCallout = styled.div`
+    background: ${p => hexToRGBA(p.theme.accentOrange, 0.16)};
+    ${BorderSmallResponsive};
+    padding: 8px 12px;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+`;
+
+const Body3Secondary = styled(Body3)`
+    color: ${p => p.theme.textSecondary};
+`;
+
+const Body3Orange = styled(Body3)`
+    color: ${p => p.theme.accentOrange};
+`;
+
+const ExclamationMarkCircleIconStyled = styled(ExclamationMarkCircleIcon)`
+    margin-top: 4px;
+    height: 16px;
+    width: 16px;
+    color: ${p => p.theme.accentOrange};
+    flex-shrink: 0;
+`;
+
+const LinkStyled = styled(Body3)`
+    color: ${p => p.theme.accentBlueConstant};
+    cursor: pointer;
+`;
+
+const H2Label2ResponsiveStyled = styled(H2Label2Responsive)`
+    ${p =>
+        p.theme.displayType === 'compact' &&
+        css`
+            padding: 0 40px;
+        `}
+`;
+
+export const WordsGridAndHeaders: FC<{
     mnemonic: string[];
-    onBack: () => void;
+    type?: 'standard' | 'mam' | 'tron';
+    allowCopy?: boolean;
+    descriptionDown?: boolean;
+}> = ({ mnemonic, type, allowCopy, descriptionDown }) => {
+    const { t } = useTranslation();
+    const config = useActiveConfig();
+    const sdk = useAppSdk();
+    type ??= 'standard';
+
+    return (
+        <>
+            <HeadingBlock>
+                <H2Label2ResponsiveStyled>
+                    {t(
+                        type === 'mam'
+                            ? 'secret_words_account_title'
+                            : type === 'tron'
+                            ? 'export_trc_20_wallet'
+                            : 'secret_words_title'
+                    )}
+                </H2Label2ResponsiveStyled>
+                {!descriptionDown && (
+                    <Body>
+                        {t(
+                            mnemonic.length === 12
+                                ? 'secret_words_caption_12'
+                                : 'secret_words_caption'
+                        )}
+                    </Body>
+                )}
+            </HeadingBlock>
+
+            {type === 'mam' && (
+                <MamAccountCallout>
+                    <div>
+                        <Body3Secondary>{t('mam_account_explanation') + ' '}</Body3Secondary>
+                        {!!config.mam_learn_more_url && (
+                            <LinkStyled onClick={() => sdk.openPage(config.mam_learn_more_url!)}>
+                                {t('learn_more')}
+                            </LinkStyled>
+                        )}
+                    </div>
+                    <ExclamationMarkCircleIconStyled />
+                </MamAccountCallout>
+            )}
+
+            {type === 'tron' && (
+                <TronAccountCallout>
+                    <div>
+                        <Body3Orange>{t('tron_account_export_warning_explanation')}</Body3Orange>
+                    </div>
+                    <ExclamationMarkCircleIconStyled />
+                </TronAccountCallout>
+            )}
+
+            <WorldsGridStyled wordsNumber={mnemonic.length as 12 | 24}>
+                {mnemonic.map((world, index) => (
+                    <Body1 key={index}>
+                        <WorldNumber> {index + 1}.</WorldNumber> {world}{' '}
+                    </Body1>
+                ))}
+            </WorldsGridStyled>
+
+            {descriptionDown && (
+                <Body>
+                    {t(mnemonic.length === 12 ? 'secret_words_caption_12' : 'secret_words_caption')}
+                </Body>
+            )}
+
+            {allowCopy && (
+                <Button
+                    onClick={() => sdk.copyToClipboard(mnemonic.join(' '), t('copied'))}
+                    marginTop
+                >
+                    {t('recovery_phrase_copy_button')}
+                </Button>
+            )}
+        </>
+    );
+};
+
+export const Words: FC<{
+    mnemonic: string[];
     onCheck: () => void;
-}> = ({ mnemonic, onBack, onCheck }) => {
+    showMamInfo?: boolean;
+}> = ({ mnemonic, onCheck, showMamInfo }) => {
     const sdk = useAppSdk();
     const { t } = useTranslation();
 
@@ -86,25 +250,11 @@ export const Worlds: FC<{
 
     return (
         <CenterContainer>
-            <BackButtonBlock onClick={onBack} />
-            <Block>
-                <div>
-                    <Header>{t('secret_words_title')}</Header>
-                    <Body>{t('secret_words_caption')}</Body>
-                </div>
-            </Block>
+            <WordsGridAndHeaders mnemonic={mnemonic} type={showMamInfo ? 'mam' : 'standard'} />
 
-            <WorldsGrid>
-                {mnemonic.map((world, index) => (
-                    <World key={index}>
-                        <WorldNumber> {index + 1}.</WorldNumber> {world}{' '}
-                    </World>
-                ))}
-            </WorldsGrid>
-
-            <Button size="large" fullWidth primary marginTop onClick={onCheck}>
+            <ButtonResponsiveSize fullWidth primary marginTop onClick={onCheck}>
                 {t('continue')}
-            </Button>
+            </ButtonResponsiveSize>
         </CenterContainer>
     );
 };
@@ -127,7 +277,7 @@ const InputBlock = styled.label<{
 }>`
     width: 100%;
     line-height: 54px;
-    border-radius: ${props => props.theme.cornerSmall};
+    ${BorderSmallResponsive};
     padding: 0 1rem;
     box-sizing: border-box;
     text-align: left;
@@ -170,6 +320,15 @@ const InputBlock = styled.label<{
         display: inline-block;
         line-height: 54px;
         padding-right: 0.35rem;
+
+        ${p =>
+            p.theme.displayType === 'full-width' &&
+            css`
+                height: fit-content;
+                line-height: normal;
+                width: unset;
+                ${Body2Class};
+            `}
     }
     ${Input} {
         display: inline-block;
@@ -177,7 +336,25 @@ const InputBlock = styled.label<{
         height: 54px;
         line-height: 54px;
         box-sizing: border-box;
+
+        ${p =>
+            p.theme.displayType === 'full-width' &&
+            css`
+                height: fit-content;
+                line-height: normal;
+                ${Body2Class};
+            `}
     }
+
+    ${p =>
+        p.theme.displayType === 'full-width' &&
+        css`
+            height: 36px;
+            line-height: normal;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+        `}
 `;
 
 const WordInput: FC<{
@@ -249,10 +426,9 @@ const seeIfValid = (value: string, mnemonic: string) => {
 
 export const Check: FC<{
     mnemonic: string[];
-    onBack: () => void;
     onConfirm: () => void;
     isLoading?: boolean;
-}> = ({ onBack, onConfirm, mnemonic, isLoading }) => {
+}> = ({ onConfirm, mnemonic, isLoading }) => {
     const { t, i18n } = useTranslation();
 
     const [one, setOne] = useState('');
@@ -279,15 +455,14 @@ export const Check: FC<{
 
     return (
         <CenterContainer>
-            <BackButtonBlock onClick={onBack} />
             <Block>
                 <div>
-                    <Header>{t('check_words_title')}</Header>
+                    <H2Label2Responsive>{t('check_words_title')}</H2Label2Responsive>
                     <Body>{description}</Body>
                 </div>
             </Block>
 
-            <Block ref={ref}>
+            <BlockSmallGap ref={ref}>
                 <WordInput
                     tabIndex={1}
                     test={test1}
@@ -312,11 +487,10 @@ export const Check: FC<{
                     isValid={seeIfValid(three, mnemonic[test3 - 1])}
                     focusNext={() => (isValid ? onConfirm() : undefined)}
                 />
-            </Block>
-            <Block>
-                <Button
+            </BlockSmallGap>
+            <BottomButtonBlock>
+                <ButtonResponsiveSize
                     tabIndex={4}
-                    size="large"
                     fullWidth
                     primary
                     loading={isLoading}
@@ -324,26 +498,28 @@ export const Check: FC<{
                     onClick={onConfirm}
                 >
                     {t('continue')}
-                </Button>
-            </Block>
+                </ButtonResponsiveSize>
+            </BottomButtonBlock>
         </CenterContainer>
     );
 };
 
-const Inputs = styled.div`
+const Inputs = styled.div<{ wordsNumber: 12 | 24 }>`
     display: grid;
     grid-template-rows: repeat(12, minmax(0, 1fr));
     grid-auto-flow: column;
     gap: 0.5rem;
 
     @media (max-width: 768px) {
-        grid-template-rows: repeat(24, minmax(0, 1fr));
+        grid-template-rows: repeat(${p => p.wordsNumber}, minmax(0, 1fr));
     }
 
     ${p =>
         p.theme.displayType === 'full-width' &&
         css`
-            grid-template-rows: repeat(8, minmax(0, 1fr));
+            grid-template-rows: ${p.wordsNumber === 24
+                ? 'repeat(8, minmax(0, 1fr))'
+                : 'repeat(4, minmax(0, 1fr))'};
         `}
 `;
 
@@ -358,18 +534,34 @@ const focusInput = (current: HTMLDivElement | null, index: number) => {
     wrapper.querySelector('input')?.focus();
 };
 
+const ToggleButtonStyled = styled(ToggleButton)`
+    margin: 0 auto 1rem;
+`;
+
 export const ImportWords: FC<{
     isLoading?: boolean;
     onMnemonic: (mnemonic: string[]) => void;
-}> = ({ isLoading, onMnemonic }) => {
+    onIsDirtyChange?: (isDirty: boolean) => void;
+    enableShortMnemonic?: boolean;
+}> = ({ isLoading, onIsDirtyChange, onMnemonic, enableShortMnemonic = true }) => {
+    const [wordsNumber, setWordsNumber] = useState<12 | 24>(24);
     const sdk = useAppSdk();
     const { standalone } = useAppContext();
     const ref = useRef<HTMLDivElement>(null);
 
     const { t } = useTranslation();
-    const navigate = useNavigate();
 
-    const [mnemonic, setMnemonic] = useState<string[]>(Array(24).fill(''));
+    const [_mnemonic, setMnemonic] = useState<string[]>(Array(24).fill(''));
+
+    const mnemonic = useMemo(() => {
+        return _mnemonic.slice(0, wordsNumber);
+    }, [_mnemonic, wordsNumber]);
+
+    const isDirty = useMemo(() => mnemonic.some(Boolean), [mnemonic]);
+
+    useEffect(() => {
+        onIsDirtyChange?.(isDirty);
+    }, [isDirty]);
 
     const onChange = useCallback(
         (newValue: string, index: number) => {
@@ -418,14 +610,16 @@ export const ImportWords: FC<{
             focusInput(ref.current, invalid);
             notify();
         }
-        if (mnemonic.length < 24) {
-            focusInput(ref.current, mnemonic.length - 1);
+
+        const notFilledField = mnemonic.findIndex(word => word === '');
+        if (notFilledField !== -1) {
+            focusInput(ref.current, notFilledField);
             notify();
         }
         if (sdk.isIOs()) {
             openIosKeyboard('text');
         }
-        const valid = await mnemonicValidate(mnemonic);
+        const valid = await validateMnemonicTonOrMAM(mnemonic);
         if (!valid) {
             notify();
         } else {
@@ -434,17 +628,38 @@ export const ImportWords: FC<{
     };
 
     return (
-        <>
-            <BackButtonBlock onClick={() => navigate(AppRoute.home)} />
+        <form onSubmit={handleSubmit(onSubmit)}>
             <Block>
                 <div>
-                    <Header>{t('import_wallet_title')}</Header>
-                    <Body>{t('import_wallet_caption')}</Body>
+                    <H2Label2Responsive>{t('import_wallet_title_web')}</H2Label2Responsive>
+                    <Body>
+                        {t(
+                            wordsNumber === 12
+                                ? 'import_wallet_caption_12'
+                                : 'import_wallet_caption'
+                        )}
+                    </Body>
                 </div>
             </Block>
+            {enableShortMnemonic && (
+                <ToggleButtonStyled>
+                    <ToggleButtonItem
+                        active={wordsNumber === 24}
+                        onClick={() => setWordsNumber(24)}
+                    >
+                        <Label2>{t('import_wallet_24_words')}</Label2>
+                    </ToggleButtonItem>
+                    <ToggleButtonItem
+                        active={wordsNumber === 12}
+                        onClick={() => setWordsNumber(12)}
+                    >
+                        <Label2>{t('import_wallet_12_words')}</Label2>
+                    </ToggleButtonItem>
+                </ToggleButtonStyled>
+            )}
             <Block>
-                <Inputs ref={ref}>
-                    {mnemonic.map((item, index) => (
+                <Inputs ref={ref} wordsNumber={wordsNumber}>
+                    {mnemonic.slice(0, wordsNumber).map((item, index) => (
                         <WordInput
                             key={index}
                             value={item}
@@ -457,18 +672,53 @@ export const ImportWords: FC<{
                     ))}
                 </Inputs>
             </Block>
-            <Block>
-                <Button
-                    size="large"
+            <BottomButtonBlock>
+                <ButtonResponsiveSize
                     fullWidth
                     primary
                     loading={isLoading}
                     onClick={onSubmit}
                     bottom={standalone}
+                    type="submit"
                 >
                     {t('continue')}
-                </Button>
+                </ButtonResponsiveSize>
+            </BottomButtonBlock>
+        </form>
+    );
+};
+
+export type ImportMnemonicType = 'tonKeychain' | 'tonMnemonic' | 'bip39';
+
+export const SelectMnemonicType: FC<{
+    availableTypes: ImportMnemonicType[];
+    onSelect: (type: ImportMnemonicType) => void;
+    isLoading?: boolean;
+}> = ({ availableTypes, onSelect, isLoading }) => {
+    const { t } = useTranslation();
+
+    return (
+        <>
+            <Block>
+                <H2Label2Responsive>{t('import_chose_mnemonic_type_title')}</H2Label2Responsive>
+                <Body>{t('import_chose_mnemonic_type_description')}</Body>
             </Block>
+            <BottomButtonBlock>
+                {isLoading ? (
+                    <ButtonResponsiveSize fullWidth secondary loading />
+                ) : (
+                    availableTypes.map(type => (
+                        <ButtonResponsiveSize
+                            key={type}
+                            fullWidth
+                            secondary
+                            onClick={() => onSelect(type)}
+                        >
+                            {t(`import_chose_mnemonic_option_${type}`)}
+                        </ButtonResponsiveSize>
+                    ))
+                )}
+            </BottomButtonBlock>
         </>
     );
 };
