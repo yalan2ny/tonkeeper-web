@@ -1,19 +1,14 @@
 import { CryptoCurrency } from '@tonkeeper/core/dist/entries/crypto';
 import { Account, JettonsBalances } from '@tonkeeper/core/dist/tonApiV2';
 import React, { FC, forwardRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../hooks/appContext';
 import { useTranslation } from '../../hooks/translation';
 import { AppRoute } from '../../libs/routes';
 import { toTokenRate, useFormatFiat, useRate } from '../../state/rates';
 import { ListBlock, ListItem } from '../List';
 import { ListItemPayload, TokenLayout, TokenLogo } from './TokenLayout';
-import {
-    TronBalances,
-    useActiveTronWallet,
-    useCanUseTronForActiveWallet
-} from '../../state/tron/tron';
-import { TronAssetComponent, TronAssets } from './TronAssets';
+import { TronBalances } from '../../state/tron/tron';
+import { TronAssetComponent } from './TronAssets';
 import { AssetAmount } from '@tonkeeper/core/dist/entries/crypto/asset/asset-amount';
 import { TronAsset } from '@tonkeeper/core/dist/entries/crypto/asset/tron-asset';
 import { isTronAsset } from '@tonkeeper/core/dist/entries/crypto/asset/asset';
@@ -24,7 +19,7 @@ import {
 import { useJettonList } from '../../state/jetton';
 import { eqAddresses } from '@tonkeeper/core/dist/utils/address';
 import { TON_ASSET } from '@tonkeeper/core/dist/entries/crypto/asset/constants';
-import { Address } from '@ton/core';
+import { useNavigate } from '../../hooks/router/useNavigate';
 
 export interface TonAssetData {
     info: Account;
@@ -34,10 +29,6 @@ export interface TonAssetData {
 export interface AssetData {
     ton: TonAssetData;
     tron: TronBalances;
-}
-
-export interface AssetProps {
-    assets: AssetData;
 }
 
 export const TonAsset = forwardRef<
@@ -54,7 +45,11 @@ export const TonAsset = forwardRef<
     const { fiatPrice, fiatAmount } = useFormatFiat(data, balance.relativeAmount);
 
     return (
-        <ListItem onClick={() => navigate(AppRoute.coins + '/ton')} className={className} ref={ref}>
+        <ListItem
+            onClick={() => navigate(AppRoute.coins + '/ton', { replace: false })}
+            className={className}
+            ref={ref}
+        >
             <ListItemPayload>
                 <TokenLogo src="https://wallet.tonkeeper.com/img/toncoin.svg" />
                 <TokenLayout
@@ -126,7 +121,10 @@ export const JettonAsset = forwardRef<
                     AppRoute.coins +
                         `/${encodeURIComponent(
                             tonAssetAddressToString((balance.asset as TonAssetType).address)
-                        )}`
+                        )}`,
+                    {
+                        replace: false
+                    }
                 )
             }
             className={className}
@@ -155,14 +153,11 @@ export const JettonList: FC<{ assets: AssetAmount[] }> = ({ assets }) => {
             assets.filter(item => item.asset.id !== TON_ASSET.id)
         ];
     }, [assets]);
-    const canUseTron = useCanUseTronForActiveWallet();
-    const tronWallet = useActiveTronWallet();
 
     return (
         <>
             <ListBlock noUserSelect>
                 <TonAsset balance={tonAssetAmount} />
-                {!tronWallet && canUseTron && <TronAssets usdt={null} />}
             </ListBlock>
             <ListBlock noUserSelect>
                 {restAssets.map(item => (

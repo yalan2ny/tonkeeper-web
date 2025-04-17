@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Asset } from '@tonkeeper/core/dist/entries/crypto/asset/asset';
 import { AssetAmount } from '@tonkeeper/core/dist/entries/crypto/asset/asset-amount';
 import { TON_ASSET, TRON_USDT_ASSET } from '@tonkeeper/core/dist/entries/crypto/asset/constants';
-import { RecipientData, isTonRecipientData } from '@tonkeeper/core/dist/entries/send';
+import { RecipientData, isTonRecipientData, Estimation } from '@tonkeeper/core/dist/entries/send';
 import React, {
     Children,
     FC,
@@ -18,7 +18,7 @@ import { useAppContext } from '../../hooks/appContext';
 import { useAppSdk } from '../../hooks/appSdk';
 import { formatFiatCurrency } from '../../hooks/balance';
 import { useTranslation } from '../../hooks/translation';
-import { useAssetAmountFiatEquivalent, useTonAssetImage, useAssetImage } from '../../state/asset';
+import { useAssetAmountFiatEquivalent, useAssetImage } from '../../state/asset';
 import { CheckmarkCircleIcon, ChevronLeftIcon, ExclamationMarkCircleIcon } from '../Icon';
 import { Gap } from '../Layout';
 import { ListBlock } from '../List';
@@ -30,7 +30,7 @@ import {
 import { Label2 } from '../Text';
 import { TransferComment } from '../activity/ActivityDetailsLayout';
 import { ActionFeeDetailsUniversal } from '../activity/NotificationCommon';
-import { RoundedButton } from '../fields/RoundedButton';
+import { RoundedButtonResponsive } from '../fields/RoundedButton';
 import { Image, ImageMock, Info, SendingTitle, Title } from './Confirm';
 import { AmountListItem, RecipientListItem } from './ConfirmListItem';
 import { ButtonBlock, ConfirmMainButton, ConfirmMainButtonProps, ResultButton } from './common';
@@ -51,11 +51,7 @@ type ConfirmViewContextValue = {
     recipient?: RecipientData;
     assetAmount: AssetAmount;
     estimation: {
-        data:
-            | {
-                  extra: AssetAmount;
-              }
-            | undefined;
+        data: Pick<Estimation, 'fee'> | undefined;
         isLoading: boolean;
     };
     formState: {
@@ -87,11 +83,7 @@ type ConfirmViewProps<T extends Asset> = PropsWithChildren<
         availableSendersChoices?: SenderChoiceUserAvailable[];
         selectedSenderType?: SenderTypeUserAvailable;
         estimation: {
-            data:
-                | {
-                      extra: AssetAmount<T>;
-                  }
-                | undefined;
+            data: Pick<Estimation<T>, 'fee'> | undefined;
             isLoading: boolean;
             error?: Error | null;
         };
@@ -237,9 +229,9 @@ export const ConfirmViewTitle: FC<PropsWithChildren> = () => {
     return (
         <NotificationTitleBlock>
             {onBack ? (
-                <RoundedButton onClick={onBack}>
+                <RoundedButtonResponsive onClick={onBack}>
                     <ChevronLeftIcon />
-                </RoundedButton>
+                </RoundedButtonResponsive>
             ) : (
                 <div />
             )}
@@ -323,7 +315,7 @@ export const ConfirmViewDetailsFee: FC<{
 
     return (
         <ActionFeeDetailsUniversal
-            extra={estimation.isLoading ? undefined : estimation.data?.extra}
+            fee={estimation.isLoading ? undefined : estimation.data?.fee}
             onSenderTypeChange={onSenderTypeChange}
             availableSendersChoices={availableSendersChoices}
             selectedSenderType={selectedSenderType}

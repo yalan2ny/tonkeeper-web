@@ -6,7 +6,7 @@ import {
 } from '@tonkeeper/core/dist/entries/crypto/asset/ton-asset';
 import { intlLocale } from '@tonkeeper/core/dist/entries/language';
 import { AccountEvent, AccountEvents, AccountsApi } from '@tonkeeper/core/dist/tonApiV2';
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { atom, useAtom } from '../libs/atom';
 import { QueryKey } from '../libs/queryKey';
 import { useGlobalPreferences, useMutateGlobalPreferences } from './global-preferences';
@@ -20,6 +20,7 @@ import { TonContract } from '@tonkeeper/core/dist/entries/wallet';
 import { TronApi, TronHistoryItem } from '@tonkeeper/core/dist/tronApi';
 import { TRON_USDT_ASSET } from '@tonkeeper/core/dist/entries/crypto/asset/constants';
 import { Asset, isTonAsset } from '@tonkeeper/core/dist/entries/crypto/asset/asset';
+import { useBatteryAuthToken } from './battery';
 
 export const formatActivityDate = (language: string, key: string, timestamp: number): string => {
     const date = new Date(timestamp);
@@ -148,6 +149,7 @@ export const useFetchFilteredActivity = (assetAddress?: string) => {
     const twoFaPlugin = twoFAConfig?.status === 'active' ? twoFAConfig.pluginAddress : undefined;
     const tronApi = useTronApi();
     const tronWallet = useActiveTronWallet();
+    const { data: batteryAuthToken } = useBatteryAuthToken();
 
     const query = useInfiniteQuery({
         queryKey: [
@@ -158,7 +160,8 @@ export const useFetchFilteredActivity = (assetAddress?: string) => {
             onlyInitiator,
             filterSpam,
             twoFaPlugin,
-            tronWallet
+            tronWallet,
+            batteryAuthToken
         ],
         queryFn: async ({ pageParam = undefined }) => {
             let assetTonApiId: string | undefined;
@@ -205,7 +208,8 @@ export const useFetchFilteredActivity = (assetAddress?: string) => {
                           tronWalletAddress: tronWallet?.address,
                           pageParam: pageParam?.tronNextFrom,
                           onlyInitiator,
-                          filterSpam
+                          filterSpam,
+                          batteryAuthToken: batteryAuthToken ?? undefined
                       })
             ]);
 
@@ -258,13 +262,15 @@ async function fetchTronActivity({
     tronWalletAddress,
     pageParam,
     onlyInitiator,
-    filterSpam
+    filterSpam,
+    batteryAuthToken
 }: {
     tronApi: TronApi;
     tronWalletAddress?: string;
     pageParam?: number;
     onlyInitiator: boolean;
     filterSpam: boolean;
+    batteryAuthToken: string | undefined;
 }) {
     if (pageParam === 0 || !tronWalletAddress) {
         return {
@@ -275,12 +281,16 @@ async function fetchTronActivity({
 
     const pageLimit = 20;
 
-    const tronActivity = await tronApi.getTransfersHistory(tronWalletAddress, {
-        limit: pageLimit,
-        maxTimestamp: pageParam ? pageParam - 1 : undefined,
-        onlyInitiator,
-        filterSpam
-    });
+    const tronActivity = await tronApi.getTransfersHistory(
+        tronWalletAddress,
+        {
+            limit: pageLimit,
+            maxTimestamp: pageParam ? pageParam - 1 : undefined,
+            onlyInitiator,
+            filterSpam
+        },
+        batteryAuthToken
+    );
 
     const nextFrom =
         tronActivity.length < pageLimit ? 0 : tronActivity[tronActivity.length - 1].timestamp;
@@ -456,15 +466,16 @@ export const isInitiatorFiltrationForAssetAvailable = (asset: Asset | undefined)
 };
 
 export const useScrollMonitor = (
-    elementRef: React.RefObject<HTMLDivElement>,
+    callback: () => void,
     timeout: number,
-    callback: () => void
+    elementRef?: React.RefObject<HTMLDivElement>
 ) => {
     const [isAtTop, setIsAtTop] = useState(true);
+    const [element, setElement] = useState(elementRef?.current);
 
     useEffect(() => {
         const handleScroll = debounce(() => {
-            if (elementRef.current && elementRef.current.scrollTop < 5) {
+            if (element && element.scrollTop < 5) {
                 setIsAtTop(true);
             } else {
                 setIsAtTop(false);
@@ -472,11 +483,11 @@ export const useScrollMonitor = (
         }, 20);
 
         handleScroll();
-        elementRef.current?.addEventListener('scroll', handleScroll);
+        element?.addEventListener('scroll', handleScroll);
         return () => {
-            elementRef.current?.removeEventListener('scroll', handleScroll);
+            element?.removeEventListener('scroll', handleScroll);
         };
-    }, [elementRef.current]);
+    }, [element]);
 
     useLayoutEffect(() => {
         const timer = setInterval(() => {
@@ -488,4 +499,6 @@ export const useScrollMonitor = (
             clearInterval(timer);
         };
     }, [isAtTop, callback]);
+
+    return setElement as Dispatch<SetStateAction<HTMLDivElement | null>>;
 };
