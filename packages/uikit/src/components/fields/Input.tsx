@@ -1,9 +1,10 @@
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 import { XmarkIcon } from '../Icon';
 import { Body2 } from '../Text';
 import { TextareaAutosize } from './TextareaAutosize';
 import { BorderSmallResponsive } from '../shared/Styles';
+import { mergeRefs } from '../../libs/common';
 
 export const InputBlock = styled.div<{
     focus: boolean;
@@ -50,6 +51,10 @@ export const InputBlock = styled.div<{
                 ? css`
                       display: none;
                   `
+                : p.theme.displayType === 'full-width'
+                ? css`
+                      transform: translate(0, 10px) scale(0.7);
+                  `
                 : css`
                       transform: translate(0, 12px) scale(0.7);
                   `}
@@ -79,6 +84,13 @@ export const InputBlock = styled.div<{
         props.isSuccess &&
         css`
             border: 1px solid ${props.theme.accentGreen};
+        `}
+
+    ${props =>
+        props.size !== 'small' &&
+        props.theme.displayType === 'full-width' &&
+        css`
+            min-height: 52px;
         `}
 `;
 
@@ -123,10 +135,20 @@ export const Label = styled.label<{ active?: boolean }>`
     left: 1rem;
 
     ${props =>
-        props.active &&
+        props.theme.displayType === 'full-width' &&
         css`
-            transform: translate(0, 12px) scale(0.7);
+            transform: translate(0, 18px) scale(1);
         `}
+
+    ${props =>
+        props.active &&
+        (props.theme.displayType === 'full-width'
+            ? css`
+                  transform: translate(0, 10px) scale(0.7);
+              `
+            : css`
+                  transform: translate(0, 12px) scale(0.7);
+              `)}
 `;
 
 export const OuterBlock = styled.div`
@@ -184,11 +206,14 @@ export interface InputProps {
     marginRight?: string;
     className?: string;
     size?: 'small' | 'medium';
+    id: string;
+    autoFocus?: number | boolean | 'notification';
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     (
         {
+            id,
             type,
             value,
             onChange,
@@ -202,11 +227,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             rightElement,
             marginRight,
             className,
-            size
+            size,
+            autoFocus
         },
         ref
     ) => {
         const [focus, setFocus] = useState(false);
+        const focused = useRef(false);
 
         const onClear: React.MouseEventHandler<HTMLDivElement> = e => {
             e.stopPropagation();
@@ -214,6 +241,22 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             if (disabled) return;
             onChange?.('');
         };
+
+        const el = useRef<HTMLInputElement>(null);
+
+        useEffect(() => {
+            if (el.current && !focused.current && autoFocus) {
+                setTimeout(
+                    () => el.current?.focus(),
+                    typeof autoFocus === 'number'
+                        ? autoFocus
+                        : autoFocus === 'notification'
+                        ? 400
+                        : 30
+                );
+                focused.current = true;
+            }
+        }, [autoFocus]);
 
         return (
             <OuterBlock className={className}>
@@ -225,7 +268,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                     size={size}
                 >
                     <InputField
-                        ref={ref}
+                        id={id}
+                        ref={mergeRefs(ref, el)}
                         disabled={disabled}
                         type={type}
                         value={value}
@@ -237,9 +281,14 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                         onBlur={() => setFocus(false)}
                         size={size}
                         placeholder={size === 'small' ? label : undefined}
+                        autoFocus={!!autoFocus}
                     />
-                    {label && size !== 'small' && <Label active={value !== ''}>{label}</Label>}
-                    {rightElement && <RightBlock onClick={onClear}>{rightElement}</RightBlock>}
+                    {label && size !== 'small' && (
+                        <Label active={value !== ''} htmlFor={id}>
+                            {label}
+                        </Label>
+                    )}
+                    {rightElement && <RightBlock>{rightElement}</RightBlock>}
                     {!!value && clearButton && !rightElement && (
                         <ClearBlock onClick={onClear}>
                             <XmarkIcon />

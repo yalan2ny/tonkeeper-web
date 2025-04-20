@@ -24,7 +24,7 @@ export class BrowserAppSdk extends BaseApp {
         this.topMessage(notification);
     };
     openPage = async (url: string) => {
-        window.open(url, '_black');
+        window.open(url, '_black', 'noreferrer,noopener');
     };
 
     disableScroll = disableScroll;
@@ -38,4 +38,6 @@ export class BrowserAppSdk extends BaseApp {
     version = packageJson.version ?? 'Unknown';
 
     targetEnv= 'web' as const;
+
+    signerReturnUrl = 'https://wallet.tonkeeper.com/';
 }

@@ -1,11 +1,12 @@
 import { EventEmitter, IEventEmitter } from '@tonkeeper/core/dist/entries/eventEmitter';
 import {
-    ConnectRequest,
+    ConnectRequest, DAppManifest,
+    SignDataRequestPayload,
     TonConnectTransactionPayload
-} from '@tonkeeper/core/dist/entries/tonConnect';
+} from "@tonkeeper/core/dist/entries/tonConnect";
 import { ProxyConfiguration } from '../entries/proxy';
-import { Account } from "@tonkeeper/core/dist/entries/account";
-import { Network } from "@tonkeeper/core/dist/entries/network";
+import { Account } from '@tonkeeper/core/dist/entries/account';
+import { Network } from '@tonkeeper/core/dist/entries/network';
 
 export type PopUpEventEmitter = IEventEmitter<PupUpEvents>;
 export type BackgroundEventsEmitter = IEventEmitter<BackgroundEvents>;
@@ -23,11 +24,12 @@ export type NotificationFields<Kind extends string, Value> = {
     logo?: string;
     origin: string;
     data: Value;
-};
+} & (Kind extends 'tonConnectRequest' ? {} : { manifest: DAppManifest });
 
 export type NotificationData =
     | NotificationFields<'tonConnectRequest', ConnectRequest>
-    | NotificationFields<'tonConnectSend', TonConnectTransactionPayload>;
+    | NotificationFields<'tonConnectSend', TonConnectTransactionPayload>
+    | NotificationFields<'tonConnectSign', SignDataRequestPayload>;
 
 export interface PupUpEvents {
     approveRequest: PayloadRequest;

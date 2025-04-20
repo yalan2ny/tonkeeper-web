@@ -2,11 +2,13 @@ import React, { FC, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from '../../hooks/translation';
 import { CenterContainer } from '../Layout';
-import { Body2, H2 } from '../Text';
-import { Button } from '../fields/Button';
+import { Body1, Body2Class, H2Label2Responsive } from '../Text';
+import { ButtonResponsiveSize } from '../fields/Button';
 import { Input } from '../fields/Input';
 import { EmojisList } from '../shared/emoji/EmojisList';
 import { WalletEmoji } from '../shared/emoji/WalletEmoji';
+import { useMobileModalFullScreenStretcher } from '../../hooks/useElementHeight';
+import { NotificationFooter, NotificationFooterPortal } from '../Notification';
 
 const Block = styled.form`
     display: flex;
@@ -15,9 +17,14 @@ const Block = styled.form`
     flex-direction: column;
 `;
 
-const Body = styled(Body2)`
+const Body = styled(Body1)`
+    user-select: none;
+    margin-bottom: 1rem;
+
     text-align: center;
     color: ${props => props.theme.textSecondary};
+
+    ${p => p.theme.displayType === 'full-width' && Body2Class}
 `;
 
 export const UpdateWalletName: FC<{
@@ -25,8 +32,10 @@ export const UpdateWalletName: FC<{
     name?: string;
     submitHandler: ({ name, emoji }: { name: string; emoji: string }) => void;
     isLoading?: boolean;
-}> = ({ walletEmoji, submitHandler, name: nameProp, isLoading }) => {
+    buttonText?: string;
+}> = ({ walletEmoji, submitHandler, name: nameProp, isLoading, buttonText }) => {
     const { t } = useTranslation();
+    const { ref: containerRef, stretcher } = useMobileModalFullScreenStretcher();
 
     const ref = useRef<HTMLInputElement | null>(null);
 
@@ -51,35 +60,42 @@ export const UpdateWalletName: FC<{
     const isValid = name.length >= 3;
 
     return (
-        <CenterContainer>
-            <Block onSubmit={onSubmit}>
-                <div>
-                    <H2>{t('Name_your_wallet')}</H2>
-                    <Body>{t('Name_your_wallet_description')}</Body>
-                </div>
+        <>
+            <CenterContainer ref={containerRef} $mobileFitContent>
+                <Block onSubmit={onSubmit}>
+                    <div>
+                        <H2Label2Responsive>{t('Name_your_wallet')}</H2Label2Responsive>
+                        <Body>{t('Name_your_wallet_description')}</Body>
+                    </div>
 
-                <Input
-                    ref={ref}
-                    value={name}
-                    onChange={onChange}
-                    label={t('Wallet_name')}
-                    isValid={isValid}
-                    rightElement={emoji ? <WalletEmoji emoji={emoji} /> : null}
-                />
-                <EmojisList keepShortListForMS={500} onClick={setEmoji} />
+                    <Input
+                        id="wallet-name"
+                        ref={ref}
+                        value={name}
+                        onChange={onChange}
+                        label={t('Wallet_name')}
+                        isValid={isValid}
+                        rightElement={emoji ? <WalletEmoji emoji={emoji} /> : null}
+                    />
+                    <EmojisList keepShortListForMS={500} onClick={setEmoji} />
 
-                <Button
-                    size="large"
-                    fullWidth
-                    marginTop
-                    primary
-                    disabled={!isValid}
-                    type="submit"
-                    loading={isLoading}
-                >
-                    {t('add_edit_favorite_save')}
-                </Button>
-            </Block>
-        </CenterContainer>
+                    <NotificationFooterPortal>
+                        <NotificationFooter>
+                            <ButtonResponsiveSize
+                                fullWidth
+                                primary
+                                disabled={!isValid}
+                                type="submit"
+                                loading={isLoading}
+                                onClick={() => submitHandler({ name, emoji })}
+                            >
+                                {buttonText ?? t('add_edit_favorite_save')}
+                            </ButtonResponsiveSize>
+                        </NotificationFooter>
+                    </NotificationFooterPortal>
+                </Block>
+            </CenterContainer>
+            {stretcher}
+        </>
     );
 };

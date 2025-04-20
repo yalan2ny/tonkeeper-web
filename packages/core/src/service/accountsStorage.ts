@@ -1,21 +1,26 @@
 import { AppKey } from '../Keys';
 import { IStorage } from '../Storage';
-import { DeprecatedWalletState, TonWalletStandard, WalletId } from '../entries/wallet';
+import {
+    DeprecatedWalletState,
+    TonWalletStandard,
+    WalletId,
+    isStandardTonWallet
+} from '../entries/wallet';
 
 import {
     Account,
     AccountId,
     AccountKeystone,
     AccountLedger,
-    AccountsState,
     AccountTonMnemonic,
     AccountTonOnly,
-    defaultAccountState,
-    bindAccountToClass
+    AccountsState,
+    bindAccountToClass,
+    defaultAccountState
 } from '../entries/account';
 
 import { DeprecatedAccountState } from '../entries/account';
-import { AuthState, DeprecatedAuthState } from '../entries/password';
+import { AuthPassword, AuthState, DeprecatedAuthState } from '../entries/password';
 import { assertUnreachable, notNullish } from '../utils/types';
 import { getFallbackAccountEmoji } from './walletService';
 
@@ -32,6 +37,8 @@ export class AccountsStorage {
         } else {
             state.forEach(bindAccountToClass);
         }
+
+        await this.migrateAccountSecret(state);
         return state ?? defaultAccountState;
     };
 
@@ -103,6 +110,10 @@ export class AccountsStorage {
         accounts.forEach(account => {
             const existingAccIndex = state.findIndex(a => a.id === account.id);
             if (existingAccIndex !== -1) {
+                const existingAcc = state[existingAccIndex];
+                if (existingAcc.type !== account.type) {
+                    throw new Error('Cannot rewrite account with account ofv different type');
+                }
                 state[existingAccIndex] = account;
                 return;
             }
@@ -147,16 +158,33 @@ export class AccountsStorage {
         if (activeAccountId !== null && ids.includes(activeAccountId)) {
             await this.setActiveAccountId(newState[0]?.id || null);
         }
+
+        return newState;
     };
 
     removeAccountFromState = async (id: AccountId) => {
         return this.removeAccountsFromState([id]);
     };
 
+    clearAccountFromState = async () => {
+        await this.setAccounts([]);
+        await this.setActiveAccountId(null);
+    };
+
     async getNewAccountNameAndEmoji(accountId: AccountId) {
         const existingAccounts = await this.getAccounts();
         const existingAccount = existingAccounts.find(a => a.id === accountId);
         const name = existingAccount?.name || 'Account ' + (existingAccounts.length + 1);
+        const emoji = existingAccount?.emoji || getFallbackAccountEmoji(accountId);
+        return { name, emoji };
+    }
+
+    async getNewMultisigAccountNameAndEmoji(accountId: AccountId) {
+        const existingAccounts = await this.getAccounts();
+        const existingAccount = existingAccounts.find(a => a.id === accountId);
+        const name =
+            existingAccount?.name ||
+            'Multisig ' + (existingAccounts.filter(a => a.type === 'ton-multisig').length + 1);
         const emoji = existingAccount?.emoji || getFallbackAccountEmoji(accountId);
         return { name, emoji };
     }
@@ -169,9 +197,38 @@ export class AccountsStorage {
 
         const accounts = await this.getAccounts();
         return (
-            accounts.find(a => a.allTonWallets.some(w => w.publicKey === state.activePublicKey))
-                ?.id || null
+            accounts.find(a =>
+                a.allTonWallets.some(
+                    w => isStandardTonWallet(w) && w.publicKey === state.activePublicKey
+                )
+            )?.id || null
         );
+    };
+
+    private migrateAccountSecret = async (accounts: Account[] | null) => {
+        if (!accounts) {
+            return;
+        }
+        let needUpdate = false;
+
+        accounts.forEach(account => {
+            if ('auth' in account && account.auth.kind === 'password') {
+                if ((account.auth as unknown as { encryptedMnemonic: string }).encryptedMnemonic) {
+                    const auth: AuthPassword = {
+                        kind: account.auth.kind,
+                        encryptedSecret: (account.auth as unknown as { encryptedMnemonic: string })
+                            .encryptedMnemonic
+                    };
+                    (account.auth as unknown as AuthPassword) = auth;
+
+                    needUpdate = true;
+                }
+            }
+        });
+
+        if (needUpdate) {
+            await this.setAccounts(accounts);
+        }
     };
 }
 
@@ -220,7 +277,7 @@ async function migrateToAccountsState(storage: IStorage): Promise<AccountsState 
 
                 auth = {
                     kind: walletAuth.kind,
-                    encryptedMnemonic
+                    encryptedSecret: encryptedMnemonic
                 };
             } else if (walletAuth.kind === 'keychain') {
                 auth = {

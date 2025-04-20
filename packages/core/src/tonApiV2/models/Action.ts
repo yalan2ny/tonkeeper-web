@@ -18,126 +18,140 @@ import {
     UnSubscriptionActionFromJSON,
     UnSubscriptionActionFromJSONTyped,
     UnSubscriptionActionToJSON,
+    UnSubscriptionActionToJSONTyped,
 } from './UnSubscriptionAction';
+import type { ExtraCurrencyTransferAction } from './ExtraCurrencyTransferAction';
+import {
+    ExtraCurrencyTransferActionFromJSON,
+    ExtraCurrencyTransferActionFromJSONTyped,
+    ExtraCurrencyTransferActionToJSON,
+    ExtraCurrencyTransferActionToJSONTyped,
+} from './ExtraCurrencyTransferAction';
 import type { DomainRenewAction } from './DomainRenewAction';
 import {
     DomainRenewActionFromJSON,
     DomainRenewActionFromJSONTyped,
     DomainRenewActionToJSON,
+    DomainRenewActionToJSONTyped,
 } from './DomainRenewAction';
 import type { ElectionsRecoverStakeAction } from './ElectionsRecoverStakeAction';
 import {
     ElectionsRecoverStakeActionFromJSON,
     ElectionsRecoverStakeActionFromJSONTyped,
     ElectionsRecoverStakeActionToJSON,
+    ElectionsRecoverStakeActionToJSONTyped,
 } from './ElectionsRecoverStakeAction';
 import type { JettonMintAction } from './JettonMintAction';
 import {
     JettonMintActionFromJSON,
     JettonMintActionFromJSONTyped,
     JettonMintActionToJSON,
+    JettonMintActionToJSONTyped,
 } from './JettonMintAction';
 import type { JettonSwapAction } from './JettonSwapAction';
 import {
     JettonSwapActionFromJSON,
     JettonSwapActionFromJSONTyped,
     JettonSwapActionToJSON,
+    JettonSwapActionToJSONTyped,
 } from './JettonSwapAction';
 import type { ElectionsDepositStakeAction } from './ElectionsDepositStakeAction';
 import {
     ElectionsDepositStakeActionFromJSON,
     ElectionsDepositStakeActionFromJSONTyped,
     ElectionsDepositStakeActionToJSON,
+    ElectionsDepositStakeActionToJSONTyped,
 } from './ElectionsDepositStakeAction';
 import type { DepositStakeAction } from './DepositStakeAction';
 import {
     DepositStakeActionFromJSON,
     DepositStakeActionFromJSONTyped,
     DepositStakeActionToJSON,
+    DepositStakeActionToJSONTyped,
 } from './DepositStakeAction';
 import type { WithdrawStakeAction } from './WithdrawStakeAction';
 import {
     WithdrawStakeActionFromJSON,
     WithdrawStakeActionFromJSONTyped,
     WithdrawStakeActionToJSON,
+    WithdrawStakeActionToJSONTyped,
 } from './WithdrawStakeAction';
 import type { NftItemTransferAction } from './NftItemTransferAction';
 import {
     NftItemTransferActionFromJSON,
     NftItemTransferActionFromJSONTyped,
     NftItemTransferActionToJSON,
+    NftItemTransferActionToJSONTyped,
 } from './NftItemTransferAction';
 import type { NftPurchaseAction } from './NftPurchaseAction';
 import {
     NftPurchaseActionFromJSON,
     NftPurchaseActionFromJSONTyped,
     NftPurchaseActionToJSON,
+    NftPurchaseActionToJSONTyped,
 } from './NftPurchaseAction';
 import type { SubscriptionAction } from './SubscriptionAction';
 import {
     SubscriptionActionFromJSON,
     SubscriptionActionFromJSONTyped,
     SubscriptionActionToJSON,
+    SubscriptionActionToJSONTyped,
 } from './SubscriptionAction';
 import type { WithdrawStakeRequestAction } from './WithdrawStakeRequestAction';
 import {
     WithdrawStakeRequestActionFromJSON,
     WithdrawStakeRequestActionFromJSONTyped,
     WithdrawStakeRequestActionToJSON,
+    WithdrawStakeRequestActionToJSONTyped,
 } from './WithdrawStakeRequestAction';
-import type { InscriptionTransferAction } from './InscriptionTransferAction';
-import {
-    InscriptionTransferActionFromJSON,
-    InscriptionTransferActionFromJSONTyped,
-    InscriptionTransferActionToJSON,
-} from './InscriptionTransferAction';
 import type { SmartContractAction } from './SmartContractAction';
 import {
     SmartContractActionFromJSON,
     SmartContractActionFromJSONTyped,
     SmartContractActionToJSON,
+    SmartContractActionToJSONTyped,
 } from './SmartContractAction';
 import type { ActionSimplePreview } from './ActionSimplePreview';
 import {
     ActionSimplePreviewFromJSON,
     ActionSimplePreviewFromJSONTyped,
     ActionSimplePreviewToJSON,
+    ActionSimplePreviewToJSONTyped,
 } from './ActionSimplePreview';
 import type { JettonTransferAction } from './JettonTransferAction';
 import {
     JettonTransferActionFromJSON,
     JettonTransferActionFromJSONTyped,
     JettonTransferActionToJSON,
+    JettonTransferActionToJSONTyped,
 } from './JettonTransferAction';
 import type { AuctionBidAction } from './AuctionBidAction';
 import {
     AuctionBidActionFromJSON,
     AuctionBidActionFromJSONTyped,
     AuctionBidActionToJSON,
+    AuctionBidActionToJSONTyped,
 } from './AuctionBidAction';
 import type { ContractDeployAction } from './ContractDeployAction';
 import {
     ContractDeployActionFromJSON,
     ContractDeployActionFromJSONTyped,
     ContractDeployActionToJSON,
+    ContractDeployActionToJSONTyped,
 } from './ContractDeployAction';
-import type { InscriptionMintAction } from './InscriptionMintAction';
-import {
-    InscriptionMintActionFromJSON,
-    InscriptionMintActionFromJSONTyped,
-    InscriptionMintActionToJSON,
-} from './InscriptionMintAction';
 import type { JettonBurnAction } from './JettonBurnAction';
 import {
     JettonBurnActionFromJSON,
     JettonBurnActionFromJSONTyped,
     JettonBurnActionToJSON,
+    JettonBurnActionToJSONTyped,
 } from './JettonBurnAction';
 import type { TonTransferAction } from './TonTransferAction';
 import {
     TonTransferActionFromJSON,
     TonTransferActionFromJSONTyped,
     TonTransferActionToJSON,
+    TonTransferActionToJSONTyped,
 } from './TonTransferAction';
 
 /**
@@ -164,6 +178,12 @@ export interface Action {
      * @memberof Action
      */
     tonTransfer?: TonTransferAction;
+    /**
+     * 
+     * @type {ExtraCurrencyTransferAction}
+     * @memberof Action
+     */
+    extraCurrencyTransfer?: ExtraCurrencyTransferAction;
     /**
      * 
      * @type {ContractDeployAction}
@@ -268,18 +288,6 @@ export interface Action {
     domainRenew?: DomainRenewAction;
     /**
      * 
-     * @type {InscriptionTransferAction}
-     * @memberof Action
-     */
-    inscriptionTransfer?: InscriptionTransferAction;
-    /**
-     * 
-     * @type {InscriptionMintAction}
-     * @memberof Action
-     */
-    inscriptionMint?: InscriptionMintAction;
-    /**
-     * 
      * @type {ActionSimplePreview}
      * @memberof Action
      */
@@ -298,6 +306,7 @@ export interface Action {
  */
 export const ActionTypeEnum = {
     TonTransfer: 'TonTransfer',
+    ExtraCurrencyTransfer: 'ExtraCurrencyTransfer',
     JettonTransfer: 'JettonTransfer',
     JettonBurn: 'JettonBurn',
     JettonMint: 'JettonMint',
@@ -315,8 +324,6 @@ export const ActionTypeEnum = {
     ElectionsRecoverStake: 'ElectionsRecoverStake',
     ElectionsDepositStake: 'ElectionsDepositStake',
     DomainRenew: 'DomainRenew',
-    InscriptionTransfer: 'InscriptionTransfer',
-    InscriptionMint: 'InscriptionMint',
     Unknown: 'Unknown'
 } as const;
 export type ActionTypeEnum = typeof ActionTypeEnum[keyof typeof ActionTypeEnum];
@@ -355,6 +362,7 @@ export function ActionFromJSONTyped(json: any, ignoreDiscriminator: boolean): Ac
         'type': json['type'],
         'status': json['status'],
         'tonTransfer': json['TonTransfer'] == null ? undefined : TonTransferActionFromJSON(json['TonTransfer']),
+        'extraCurrencyTransfer': json['ExtraCurrencyTransfer'] == null ? undefined : ExtraCurrencyTransferActionFromJSON(json['ExtraCurrencyTransfer']),
         'contractDeploy': json['ContractDeploy'] == null ? undefined : ContractDeployActionFromJSON(json['ContractDeploy']),
         'jettonTransfer': json['JettonTransfer'] == null ? undefined : JettonTransferActionFromJSON(json['JettonTransfer']),
         'jettonBurn': json['JettonBurn'] == null ? undefined : JettonBurnActionFromJSON(json['JettonBurn']),
@@ -372,22 +380,26 @@ export function ActionFromJSONTyped(json: any, ignoreDiscriminator: boolean): Ac
         'jettonSwap': json['JettonSwap'] == null ? undefined : JettonSwapActionFromJSON(json['JettonSwap']),
         'smartContractExec': json['SmartContractExec'] == null ? undefined : SmartContractActionFromJSON(json['SmartContractExec']),
         'domainRenew': json['DomainRenew'] == null ? undefined : DomainRenewActionFromJSON(json['DomainRenew']),
-        'inscriptionTransfer': json['InscriptionTransfer'] == null ? undefined : InscriptionTransferActionFromJSON(json['InscriptionTransfer']),
-        'inscriptionMint': json['InscriptionMint'] == null ? undefined : InscriptionMintActionFromJSON(json['InscriptionMint']),
         'simplePreview': ActionSimplePreviewFromJSON(json['simple_preview']),
         'baseTransactions': json['base_transactions'],
     };
 }
 
-export function ActionToJSON(value?: Action | null): any {
+export function ActionToJSON(json: any): Action {
+    return ActionToJSONTyped(json, false);
+}
+
+export function ActionToJSONTyped(value?: Action | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
+
     return {
         
         'type': value['type'],
         'status': value['status'],
         'TonTransfer': TonTransferActionToJSON(value['tonTransfer']),
+        'ExtraCurrencyTransfer': ExtraCurrencyTransferActionToJSON(value['extraCurrencyTransfer']),
         'ContractDeploy': ContractDeployActionToJSON(value['contractDeploy']),
         'JettonTransfer': JettonTransferActionToJSON(value['jettonTransfer']),
         'JettonBurn': JettonBurnActionToJSON(value['jettonBurn']),
@@ -405,8 +417,6 @@ export function ActionToJSON(value?: Action | null): any {
         'JettonSwap': JettonSwapActionToJSON(value['jettonSwap']),
         'SmartContractExec': SmartContractActionToJSON(value['smartContractExec']),
         'DomainRenew': DomainRenewActionToJSON(value['domainRenew']),
-        'InscriptionTransfer': InscriptionTransferActionToJSON(value['inscriptionTransfer']),
-        'InscriptionMint': InscriptionMintActionToJSON(value['inscriptionMint']),
         'simple_preview': ActionSimplePreviewToJSON(value['simplePreview']),
         'base_transactions': value['baseTransactions'],
     };

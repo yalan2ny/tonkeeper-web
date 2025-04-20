@@ -1,17 +1,17 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { Account, AccountId } from '@tonkeeper/core/dist/entries/account';
 import { FC, useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from '../../hooks/translation';
-import { AppRoute, SettingsRoute } from '../../libs/routes';
-import { useMutateDeleteAll } from '../../state/wallet';
-import { useMutateLogOut } from '../../state/wallet';
+import { AppRoute } from '../../libs/routes';
+import { useMutateDeleteAll, useMutateLogOut } from '../../state/wallet';
 import { Notification } from '../Notification';
 import { Body1, H2, Label1, Label2 } from '../Text';
 import { Button } from '../fields/Button';
 import { Checkbox } from '../fields/Checkbox';
 import { DisclaimerBlock } from '../home/BuyItemNotification';
-import { Account, AccountId } from '@tonkeeper/core/dist/entries/account';
+import { useRecoveryNotification } from '../modals/RecoveryNotificationControlled';
+import { useNavigate } from '../../hooks/router/useNavigate';
+import { useAppSdk } from '../../hooks/appSdk';
 
 const NotificationBlock = styled.div`
     display: flex;
@@ -36,19 +36,22 @@ const DisclaimerLink = styled(Label1)`
     margin-left: 2.35rem;
 `;
 
-const DeleteContent: FC<{
-    onClose: (action: () => void) => void;
+export const DeleteNotificationContent: FC<{
+    onClose: () => void;
     accountId: AccountId;
     isKeystone: boolean;
-}> = ({ onClose, accountId, isKeystone }) => {
+    isReadOnly: boolean;
+}> = ({ onClose, accountId, isKeystone, isReadOnly }) => {
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const [checked, setChecked] = useState(false);
+    const [checked, setChecked] = useState(isKeystone || isReadOnly);
     const { mutateAsync, isLoading } = useMutateLogOut();
+    const { onOpen: onRecovery } = useRecoveryNotification();
 
     const onDelete = async () => {
+        onClose();
+        navigate(AppRoute.home);
         await mutateAsync(accountId);
-        onClose(() => navigate(AppRoute.home));
     };
 
     return (
@@ -63,8 +66,7 @@ const DeleteContent: FC<{
                     )}
                 </BodyText>
             </TextBlock>
-
-            {!isKeystone && (
+            {!isKeystone && !isReadOnly && (
                 <DisclaimerBlock>
                     <DisclaimerText>
                         <Checkbox checked={checked} onChange={setChecked} light>
@@ -72,21 +74,18 @@ const DeleteContent: FC<{
                         </Checkbox>
                     </DisclaimerText>
                     <DisclaimerLink
-                        onClick={() =>
-                            onClose(() =>
-                                navigate(
-                                    AppRoute.settings + SettingsRoute.recovery + '/' + accountId
-                                )
-                            )
-                        }
+                        onClick={() => {
+                            onRecovery({ accountId });
+                            onClose();
+                        }}
                     >
                         {t('Back_up_now')}
                     </DisclaimerLink>
                 </DisclaimerBlock>
             )}
-            {isKeystone && <div style={{ height: 16 }} />}
+            {(isKeystone || isReadOnly) && <div style={{ height: 16 }} />}
             <Button
-                disabled={!checked && !isKeystone}
+                disabled={!checked}
                 size="large"
                 fullWidth
                 loading={isLoading}
@@ -104,13 +103,14 @@ export const DeleteAccountNotification: FC<{
     handleClose: () => void;
 }> = ({ account, handleClose }) => {
     const Content = useCallback(
-        (afterClose: (action: () => void) => void) => {
+        (afterClose: () => void) => {
             if (!account) return undefined;
             return (
-                <DeleteContent
+                <DeleteNotificationContent
                     accountId={account.id}
                     onClose={afterClose}
                     isKeystone={account.type === 'keystone'}
+                    isReadOnly={account.type === 'watch-only'}
                 />
             );
         },
@@ -124,20 +124,10 @@ export const DeleteAccountNotification: FC<{
     );
 };
 
-const DeleteAllContent: FC<{ onClose: (action: () => void) => void }> = ({ onClose }) => {
-    const navigate = useNavigate();
+const DeleteAllContent = () => {
     const { t } = useTranslation();
     const [checked, setChecked] = useState(false);
-    const { mutateAsync, isLoading } = useMutateDeleteAll();
-    const client = useQueryClient();
-
-    const onDelete = async () => {
-        await mutateAsync();
-        onClose(async () => {
-            await client.invalidateQueries();
-            navigate(AppRoute.home);
-        });
-    };
+    const { mutate, isLoading } = useMutateDeleteAll();
 
     return (
         <NotificationBlock>
@@ -152,20 +142,13 @@ const DeleteAllContent: FC<{ onClose: (action: () => void) => void }> = ({ onClo
                         {t('I_have_a_backup_copy_of_recovery_phrase')}
                     </Checkbox>
                 </DisclaimerText>
-                <DisclaimerLink
-                    onClick={() =>
-                        onClose(() => navigate(AppRoute.settings + SettingsRoute.recovery))
-                    }
-                >
-                    {t('Back_up_now')}
-                </DisclaimerLink>
             </DisclaimerBlock>
             <Button
                 disabled={!checked}
                 size="large"
                 fullWidth
                 loading={isLoading}
-                onClick={onDelete}
+                onClick={() => mutate()}
                 type="button"
             >
                 {t('Delete_wallet_data')}
@@ -178,13 +161,10 @@ export const DeleteAllNotification: FC<{
     open: boolean;
     handleClose: () => void;
 }> = ({ open, handleClose }) => {
-    const Content = useCallback(
-        (afterClose: (action: () => void) => void) => {
-            if (!open) return undefined;
-            return <DeleteAllContent onClose={afterClose} />;
-        },
-        [open]
-    );
+    const Content = useCallback(() => {
+        if (!open) return undefined;
+        return <DeleteAllContent />;
+    }, [open]);
 
     return (
         <Notification isOpen={open} handleClose={handleClose}>

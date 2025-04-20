@@ -19,18 +19,17 @@ import type {
   AccountEvent,
   AccountEvents,
   Accounts,
-  AddressParse200Response,
   DnsExpiring,
   DomainNames,
   FoundAccounts,
   GetAccountDiff200Response,
   GetAccountPublicKey200Response,
   GetAccountsRequest,
+  InlineObject,
   JettonBalance,
   JettonsBalances,
   Multisigs,
   NftItems,
-  StatusDefaultResponse,
   Subscriptions,
   TraceIDs,
 } from '../models/index';
@@ -43,8 +42,6 @@ import {
     AccountEventsToJSON,
     AccountsFromJSON,
     AccountsToJSON,
-    AddressParse200ResponseFromJSON,
-    AddressParse200ResponseToJSON,
     DnsExpiringFromJSON,
     DnsExpiringToJSON,
     DomainNamesFromJSON,
@@ -57,6 +54,8 @@ import {
     GetAccountPublicKey200ResponseToJSON,
     GetAccountsRequestFromJSON,
     GetAccountsRequestToJSON,
+    InlineObjectFromJSON,
+    InlineObjectToJSON,
     JettonBalanceFromJSON,
     JettonBalanceToJSON,
     JettonsBalancesFromJSON,
@@ -65,8 +64,6 @@ import {
     MultisigsToJSON,
     NftItemsFromJSON,
     NftItemsToJSON,
-    StatusDefaultResponseFromJSON,
-    StatusDefaultResponseToJSON,
     SubscriptionsFromJSON,
     SubscriptionsToJSON,
     TraceIDsFromJSON,
@@ -74,10 +71,6 @@ import {
 } from '../models/index';
 
 export interface AccountDnsBackResolveRequest {
-    accountId: string;
-}
-
-export interface AddressParseRequest {
     accountId: string;
 }
 
@@ -114,10 +107,21 @@ export interface GetAccountEventsRequest {
     endDate?: number;
 }
 
+export interface GetAccountExtraCurrencyHistoryByIDRequest {
+    accountId: string;
+    id: number;
+    limit: number;
+    acceptLanguage?: string;
+    beforeLt?: number;
+    startDate?: number;
+    endDate?: number;
+}
+
 export interface GetAccountJettonBalanceRequest {
     accountId: string;
     jettonId: string;
     currencies?: Array<string>;
+    supportedExtensions?: Array<string>;
 }
 
 export interface GetAccountJettonHistoryByIDRequest {
@@ -133,6 +137,7 @@ export interface GetAccountJettonHistoryByIDRequest {
 export interface GetAccountJettonsBalancesRequest {
     accountId: string;
     currencies?: Array<string>;
+    supportedExtensions?: Array<string>;
 }
 
 export interface GetAccountJettonsHistoryRequest {
@@ -203,20 +208,6 @@ export interface AccountsApiInterface {
      * Get account\'s domains
      */
     accountDnsBackResolve(requestParameters: AccountDnsBackResolveRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DomainNames>;
-
-    /**
-     * parse address and display in all formats
-     * @param {string} accountId account ID
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof AccountsApiInterface
-     */
-    addressParseRaw(requestParameters: AddressParseRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<AddressParse200Response>>;
-
-    /**
-     * parse address and display in all formats
-     */
-    addressParse(requestParameters: AddressParseRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AddressParse200Response>;
 
     /**
      * Get human-friendly information about an account without low-level details.
@@ -302,10 +293,31 @@ export interface AccountsApiInterface {
     getAccountEvents(requestParameters: GetAccountEventsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AccountEvents>;
 
     /**
+     * Get the transfer history of extra currencies for an account.
+     * @param {string} accountId account ID
+     * @param {number} id extra currency id
+     * @param {number} limit 
+     * @param {string} [acceptLanguage] 
+     * @param {number} [beforeLt] omit this parameter to get last events
+     * @param {number} [startDate] 
+     * @param {number} [endDate] 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AccountsApiInterface
+     */
+    getAccountExtraCurrencyHistoryByIDRaw(requestParameters: GetAccountExtraCurrencyHistoryByIDRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<AccountEvents>>;
+
+    /**
+     * Get the transfer history of extra currencies for an account.
+     */
+    getAccountExtraCurrencyHistoryByID(requestParameters: GetAccountExtraCurrencyHistoryByIDRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AccountEvents>;
+
+    /**
      * Get Jetton balance by owner address
      * @param {string} accountId account ID
      * @param {string} jettonId jetton ID
      * @param {Array<string>} [currencies] accept ton and all possible fiat currencies, separated by commas
+     * @param {Array<string>} [supportedExtensions] comma separated list supported extensions
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof AccountsApiInterface
@@ -341,6 +353,7 @@ export interface AccountsApiInterface {
      * Get all Jettons balances by owner address
      * @param {string} accountId account ID
      * @param {Array<string>} [currencies] accept ton and all possible fiat currencies, separated by commas
+     * @param {Array<string>} [supportedExtensions] comma separated list supported extensions
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof AccountsApiInterface
@@ -527,39 +540,6 @@ export class AccountsApi extends runtime.BaseAPI implements AccountsApiInterface
      */
     async accountDnsBackResolve(requestParameters: AccountDnsBackResolveRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DomainNames> {
         const response = await this.accountDnsBackResolveRaw(requestParameters, initOverrides);
-        return await response.value();
-    }
-
-    /**
-     * parse address and display in all formats
-     */
-    async addressParseRaw(requestParameters: AddressParseRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<AddressParse200Response>> {
-        if (requestParameters['accountId'] == null) {
-            throw new runtime.RequiredError(
-                'accountId',
-                'Required parameter "accountId" was null or undefined when calling addressParse().'
-            );
-        }
-
-        const queryParameters: any = {};
-
-        const headerParameters: runtime.HTTPHeaders = {};
-
-        const response = await this.request({
-            path: `/v2/address/{account_id}/parse`.replace(`{${"account_id"}}`, encodeURIComponent(String(requestParameters['accountId']))),
-            method: 'GET',
-            headers: headerParameters,
-            query: queryParameters,
-        }, initOverrides);
-
-        return new runtime.JSONApiResponse(response, (jsonValue) => AddressParse200ResponseFromJSON(jsonValue));
-    }
-
-    /**
-     * parse address and display in all formats
-     */
-    async addressParse(requestParameters: AddressParseRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AddressParse200Response> {
-        const response = await this.addressParseRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -805,6 +785,73 @@ export class AccountsApi extends runtime.BaseAPI implements AccountsApiInterface
     }
 
     /**
+     * Get the transfer history of extra currencies for an account.
+     */
+    async getAccountExtraCurrencyHistoryByIDRaw(requestParameters: GetAccountExtraCurrencyHistoryByIDRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<AccountEvents>> {
+        if (requestParameters['accountId'] == null) {
+            throw new runtime.RequiredError(
+                'accountId',
+                'Required parameter "accountId" was null or undefined when calling getAccountExtraCurrencyHistoryByID().'
+            );
+        }
+
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling getAccountExtraCurrencyHistoryByID().'
+            );
+        }
+
+        if (requestParameters['limit'] == null) {
+            throw new runtime.RequiredError(
+                'limit',
+                'Required parameter "limit" was null or undefined when calling getAccountExtraCurrencyHistoryByID().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        if (requestParameters['beforeLt'] != null) {
+            queryParameters['before_lt'] = requestParameters['beforeLt'];
+        }
+
+        if (requestParameters['limit'] != null) {
+            queryParameters['limit'] = requestParameters['limit'];
+        }
+
+        if (requestParameters['startDate'] != null) {
+            queryParameters['start_date'] = requestParameters['startDate'];
+        }
+
+        if (requestParameters['endDate'] != null) {
+            queryParameters['end_date'] = requestParameters['endDate'];
+        }
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (requestParameters['acceptLanguage'] != null) {
+            headerParameters['Accept-Language'] = String(requestParameters['acceptLanguage']);
+        }
+
+        const response = await this.request({
+            path: `/v2/accounts/{account_id}/extra-currency/{id}/history`.replace(`{${"account_id"}}`, encodeURIComponent(String(requestParameters['accountId']))).replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id']))),
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => AccountEventsFromJSON(jsonValue));
+    }
+
+    /**
+     * Get the transfer history of extra currencies for an account.
+     */
+    async getAccountExtraCurrencyHistoryByID(requestParameters: GetAccountExtraCurrencyHistoryByIDRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AccountEvents> {
+        const response = await this.getAccountExtraCurrencyHistoryByIDRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * Get Jetton balance by owner address
      */
     async getAccountJettonBalanceRaw(requestParameters: GetAccountJettonBalanceRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<JettonBalance>> {
@@ -826,6 +873,10 @@ export class AccountsApi extends runtime.BaseAPI implements AccountsApiInterface
 
         if (requestParameters['currencies'] != null) {
             queryParameters['currencies'] = requestParameters['currencies']!.join(runtime.COLLECTION_FORMATS["csv"]);
+        }
+
+        if (requestParameters['supportedExtensions'] != null) {
+            queryParameters['supported_extensions'] = requestParameters['supportedExtensions']!.join(runtime.COLLECTION_FORMATS["csv"]);
         }
 
         const headerParameters: runtime.HTTPHeaders = {};
@@ -930,6 +981,10 @@ export class AccountsApi extends runtime.BaseAPI implements AccountsApiInterface
 
         if (requestParameters['currencies'] != null) {
             queryParameters['currencies'] = requestParameters['currencies']!.join(runtime.COLLECTION_FORMATS["csv"]);
+        }
+
+        if (requestParameters['supportedExtensions'] != null) {
+            queryParameters['supported_extensions'] = requestParameters['supportedExtensions']!.join(runtime.COLLECTION_FORMATS["csv"]);
         }
 
         const headerParameters: runtime.HTTPHeaders = {};

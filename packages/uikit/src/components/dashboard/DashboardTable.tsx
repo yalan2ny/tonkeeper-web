@@ -3,10 +3,11 @@ import { FC, useEffect, useRef, useState } from 'react';
 import { Body2 } from '../Text';
 import { useDashboardColumnsAsForm } from '../../state/dashboard/useDashboardColumns';
 import { useDashboardData } from '../../state/dashboard/useDashboardData';
-import { DashboardCellAddress, DashboardColumnType } from '@tonkeeper/core/dist/entries/dashboard';
+import { DashboardColumnType } from '@tonkeeper/core/dist/entries/dashboard';
 import { Skeleton } from '../shared/Skeleton';
 import { DashboardCell } from './columns/DashboardCell';
 import { useAccountsState } from '../../state/wallet';
+import { seeIfMainnnetAccount } from '@tonkeeper/core/dist/entries/account';
 
 const TableStyled = styled.table`
     width: 100%;
@@ -101,7 +102,7 @@ export const DashboardTable: FC<{ className?: string }> = ({ className }) => {
     const { data: columns } = useDashboardColumnsAsForm();
     const { data: dashboardData } = useDashboardData();
     const wallets = useAccountsState();
-    const mainnetIds = wallets?.map(w => w!.id);
+    const mainnetIds = wallets.filter(seeIfMainnnetAccount)?.map(w => w!.id);
 
     const [isResizing, setIsResizing] = useState<boolean>(false);
     const [hoverOnColumn, setHoverOnColumn] = useState<number | undefined>(undefined);
@@ -203,17 +204,11 @@ export const DashboardTable: FC<{ className?: string }> = ({ className }) => {
             </thead>
             <tbody>
                 {dashboardData
-                    ? dashboardData.map((dataRow, index) => (
-                          <TrStyled key={index.toString()}>
-                              {dataRow.map((cell, i) => (
+                    ? dashboardData.map(dataRow => (
+                          <TrStyled key={dataRow.id}>
+                              {dataRow.cells.map(cell => (
                                   <Td
-                                      key={
-                                          (
-                                              dataRow.find(
-                                                  c => c.type === 'address'
-                                              ) as DashboardCellAddress
-                                          )?.raw || i.toString()
-                                      }
+                                      key={dataRow.id + '_' + cell.columnId}
                                       textAlign={isNumericColumn(cell.type) ? 'right' : undefined}
                                   >
                                       <DashboardCell {...cell} />

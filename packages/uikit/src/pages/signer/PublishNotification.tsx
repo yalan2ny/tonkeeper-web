@@ -1,20 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { publishSignerMessage } from '@tonkeeper/core/dist/service/signerService';
 import { FC, useCallback, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckmarkCircleIcon, ExclamationMarkCircleIcon } from '../../components/Icon';
 import { FullHeightBlockResponsive, Notification } from '../../components/Notification';
 import { Label2 } from '../../components/Text';
 import { ButtonBlock, ConfirmMainButton, ResultButton } from '../../components/transfer/common';
-import { useAppContext } from '../../hooks/appContext';
 import { useAppSdk } from '../../hooks/appSdk';
 import { useTranslation } from '../../hooks/translation';
 import { AppRoute } from '../../libs/routes';
-import { useActiveStandardTonWallet } from '../../state/wallet';
+import { useActiveApi, useActiveStandardTonWallet } from '../../state/wallet';
+import { useSearchParams } from '../../hooks/router/useSearchParams';
+import { useNavigate } from '../../hooks/router/useNavigate';
 
 const usePublishMessage = (signatureHex: string) => {
     const sdk = useAppSdk();
-    const { api } = useAppContext();
+    const api = useActiveApi();
     const wallet = useActiveStandardTonWallet();
     return useQuery([signatureHex], async () => {
         return publishSignerMessage(sdk, api, wallet, signatureHex);

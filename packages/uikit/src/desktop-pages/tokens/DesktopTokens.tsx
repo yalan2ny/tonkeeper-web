@@ -1,23 +1,29 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { isTonAddress } from '@tonkeeper/core/dist/utils/common';
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import styled, { css } from 'styled-components';
 import { fallbackRenderOver } from '../../components/Error';
-import { Body2, Label2 } from '../../components/Text';
+import { Body2 } from '../../components/Text';
 import {
     DesktopViewHeader,
+    DesktopViewHeaderContent,
     DesktopViewPageLayout
 } from '../../components/desktop/DesktopViewLayout';
 import { TokensPieChart } from '../../components/desktop/tokens/TokensPieChart';
-import { JettonAsset, TonAsset } from '../../components/home/Jettons';
+import { AnyChainAsset, TonAsset } from '../../components/home/Jettons';
 import { useTranslation } from '../../hooks/translation';
-import { useAssets } from '../../state/home';
+import { allChainsAssetsKeys, useAllChainsAssets } from '../../state/home';
 import { useMutateUserUIPreferences, useUserUIPreferences } from '../../state/theme';
 
-import { useAssetsDistribution } from "../../state/asset";
+import { useAssetsDistribution } from '../../state/asset';
+import { TON_ASSET } from '@tonkeeper/core/dist/entries/crypto/asset/constants';
+import { useAppTargetEnv } from '../../hooks/appSdk';
+import { InvisibleIcon, VisibleIcon } from '../../components/Icon';
+import { ForTargetEnv } from '../../components/shared/TargetEnv';
+import { PullToRefresh } from '../../components/mobile-pro/PullToRefresh';
 
-const DesktopAssetStylesOverride = css`
+export const DesktopAssetStylesOverride = css`
     background-color: transparent;
     transition: background-color 0.15s ease-in-out;
     border-radius: 0;
@@ -30,22 +36,29 @@ const DesktopAssetStylesOverride = css`
 const TonAssetStyled = styled(TonAsset)`
     margin: 0 -16px;
 
+    ${p =>
+        p.theme.proDisplayType === 'mobile' &&
+        css`
+            > * {
+                padding-top: 8px !important;
+            }
+        `}
+
     ${DesktopAssetStylesOverride}
 `;
 
-const JettonAssetStyled = styled(JettonAsset)`
+const AnyChainAssetStyled = styled(AnyChainAsset)`
     ${DesktopAssetStylesOverride}
-`;
-
-const TokensHeaderContainer = styled(DesktopViewHeader)`
-    flex-shrink: 0;
-    justify-content: space-between;
-    border-bottom: 1px solid ${p => p.theme.separatorCommon};
-    padding-right: 0;
 `;
 
 const TokensPageBody = styled.div`
     padding: 0 1rem 1rem;
+    position: relative;
+    ${p =>
+        p.theme.proDisplayType === 'mobile' &&
+        css`
+            padding-bottom: 0;
+        `};
 
     .highlight-asset {
         background-color: ${p => p.theme.backgroundContentTint};
@@ -55,12 +68,27 @@ const TokensPageBody = styled.div`
 const HideButton = styled.button`
     border: none;
     background-color: transparent;
-    padding: 0.5rem 1rem;
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 5px;
 
-    color: ${p => p.theme.textAccent};
+    ${p =>
+        p.theme.proDisplayType === 'desktop' &&
+        css`
+            padding: 0.5rem 1rem;
+            color: ${p.theme.textAccent};
+        `}
+
+    ${p =>
+        p.theme.proDisplayType === 'mobile' &&
+        css`
+            justify-content: flex-start;
+            width: 100%;
+            > svg {
+                width: 16px;
+                height: 16px;
+            }
+        `}
 `;
 
 const Divider = styled.div`
@@ -70,10 +98,14 @@ const Divider = styled.div`
     width: calc(100% + 32px);
 `;
 
-const itemSize = 77;
-
 const DesktopTokensPayload = () => {
-    const [assets] = useAssets();
+    const { assets: allAssets } = useAllChainsAssets() ?? [];
+    const [tonAssetAmount, assets] = useMemo(() => {
+        return [
+            allAssets?.find(item => item.asset.id === TON_ASSET.id),
+            allAssets?.filter(item => item.asset.id !== TON_ASSET.id)
+        ];
+    }, [allAssets]);
     const { t } = useTranslation();
     const { data: distribution } = useAssetsDistribution();
     const { data: uiPreferences } = useUserUIPreferences();
@@ -81,6 +113,7 @@ const DesktopTokensPayload = () => {
     const [showChart, setShowChart] = useState(true);
     const tonRef = useRef<HTMLDivElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const env = useAppTargetEnv();
 
     useLayoutEffect(() => {
         if (uiPreferences?.showTokensChart !== undefined) {
@@ -95,20 +128,27 @@ const DesktopTokensPayload = () => {
         setShowChart(!showChart);
     };
 
-    const sortedAssets = useMemo(() => {
-        return assets?.ton?.jettons?.balances ?? [];
-    }, [assets]);
+    const itemSize = env === 'mobile' ? 61 : 77;
+    const chartSize = env === 'mobile' ? 388 : 192;
+
+    const virtualScrollPaddingBase = itemSize;
 
     const rowVirtualizer = useVirtualizer({
-        count: sortedAssets.length,
+        count: assets?.length ?? 0,
         getScrollElement: () => containerRef.current,
         estimateSize: () => itemSize,
-        getItemKey: index => sortedAssets[index].jetton.address,
-        paddingStart: canShowChart && showChart ? 192 + itemSize : itemSize
+        getItemKey: index => assets![index].asset.id,
+        paddingStart:
+            canShowChart && showChart
+                ? chartSize + virtualScrollPaddingBase
+                : virtualScrollPaddingBase
     });
 
     const onTokenClick = useCallback(
         (address: string) => {
+            if (env === 'mobile') {
+                return;
+            }
             if (isTonAddress(address) && tonRef.current) {
                 return rowVirtualizer.scrollToOffset(tonRef.current.offsetTop);
             }
@@ -117,40 +157,57 @@ const DesktopTokensPayload = () => {
                 return rowVirtualizer.scrollToOffset(containerRef.current!.scrollHeight);
             }
 
-            const index = sortedAssets.findIndex(item => item.jetton.address === address);
+            const index = assets!.findIndex(item => item.asset.address === address);
             if (index !== undefined) {
                 rowVirtualizer.scrollToOffset(
                     (tonRef.current?.offsetTop ?? 0) + (index + 1) * itemSize
                 );
             }
         },
-        [sortedAssets, rowVirtualizer, rowVirtualizer.elementsCache]
+        [assets, rowVirtualizer, rowVirtualizer.elementsCache, env]
     );
+
+    /**
+     * Cover Ionic virtualisation bug
+     */
+    useEffect(() => {
+        rowVirtualizer.measure();
+    }, []);
 
     return (
         <DesktopViewPageLayout ref={containerRef}>
-            <TokensHeaderContainer>
-                <Label2>{t('jettons_list_title')}</Label2>
-                {canShowChart && (
-                    <HideButton onClick={onToggleChart}>
-                        <Body2>
-                            {t(
-                                showChart
-                                    ? 'tokens_hide_statistics_btn'
-                                    : 'tokens_show_statistics_btn'
-                            )}
-                        </Body2>
-                    </HideButton>
-                )}
-            </TokensHeaderContainer>
+            <DesktopViewHeader borderBottom>
+                <DesktopViewHeaderContent
+                    title={t('jettons_list_title')}
+                    right={
+                        canShowChart && (
+                            <DesktopViewHeaderContent.Right>
+                                <DesktopViewHeaderContent.RightItem>
+                                    <HideButton onClick={onToggleChart}>
+                                        <ForTargetEnv env="mobile">
+                                            {showChart ? <InvisibleIcon /> : <VisibleIcon />}
+                                        </ForTargetEnv>
+                                        <Body2>
+                                            {t(
+                                                showChart
+                                                    ? 'tokens_hide_statistics_btn'
+                                                    : 'tokens_show_statistics_btn'
+                                            )}
+                                        </Body2>
+                                    </HideButton>
+                                </DesktopViewHeaderContent.RightItem>
+                            </DesktopViewHeaderContent.Right>
+                        )
+                    }
+                />
+            </DesktopViewHeader>
+            <PullToRefresh invalidate={allChainsAssetsKeys} />
             <TokensPageBody
                 style={{
-                    height: `${rowVirtualizer.getTotalSize()}px`,
-                    position: 'relative',
-                    overflow: 'hidden'
+                    height: `${rowVirtualizer.getTotalSize()}px`
                 }}
             >
-                {sortedAssets && assets && distribution && uiPreferences && (
+                {tonAssetAmount && assets && distribution && uiPreferences && (
                     <>
                         {canShowChart && showChart && (
                             <ErrorBoundary
@@ -163,7 +220,7 @@ const DesktopTokensPayload = () => {
                                 <Divider />
                             </ErrorBoundary>
                         )}
-                        <TonAssetStyled ref={tonRef} info={assets.ton.info} />
+                        <TonAssetStyled ref={tonRef} balance={tonAssetAmount} />
                         <Divider />
                         {rowVirtualizer.getVirtualItems().map(virtualRow => (
                             <div
@@ -172,7 +229,7 @@ const DesktopTokensPayload = () => {
                                     position: 'absolute',
                                     top: 0,
                                     left: 0,
-                                    width: `100%`,
+                                    width: '100%',
                                     height: `${virtualRow.size}px`,
                                     transform: `translateY(${virtualRow.start}px)`
                                 }}
@@ -182,7 +239,7 @@ const DesktopTokensPayload = () => {
                                         'Failed to display tokens list'
                                     )}
                                 >
-                                    <JettonAssetStyled jetton={sortedAssets[virtualRow.index]} />
+                                    <AnyChainAssetStyled balance={assets[virtualRow.index]} />
                                     <Divider />
                                 </ErrorBoundary>
                             </div>

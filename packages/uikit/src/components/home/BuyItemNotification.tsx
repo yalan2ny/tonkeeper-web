@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sha512_sync } from '@ton/crypto';
 import { FiatCurrencies } from '@tonkeeper/core/dist/entries/fiat';
-import { TonWalletStandard } from '@tonkeeper/core/dist/entries/wallet';
+import { TonContract } from '@tonkeeper/core/dist/entries/wallet';
 import {
     TonendpoinFiatButton,
     TonendpoinFiatItem,
@@ -24,7 +24,7 @@ import { Button } from '../fields/Button';
 import { Checkbox } from '../fields/Checkbox';
 import { useCreateMercuryoProUrl } from '../../state/tonendpoint';
 import { hexToRGBA } from '../../libs/css';
-import { useActiveWallet } from '../../state/wallet';
+import { useActiveConfig, useActiveWallet } from '../../state/wallet';
 
 const Logo = styled.img<{ large?: boolean }>`
     pointer-events: none;
@@ -159,7 +159,7 @@ const useShowDisclaimer = (title: string, kind: 'buy' | 'sell') => {
 const replacePlaceholders = (
     url: string,
     config: TonendpointConfig,
-    wallet: TonWalletStandard,
+    wallet: TonContract,
     fiat: FiatCurrencies,
     kind: 'buy' | 'sell'
 ) => {
@@ -212,7 +212,8 @@ export const BuyItemNotification: FC<{
     const track = useBuyAnalytics();
     const sdk = useAppSdk();
     const wallet = useActiveWallet();
-    const { config, fiat } = useAppContext();
+    const config = useActiveConfig();
+    const { fiat } = useAppContext();
     const { t } = useTranslation();
     const [open, setOpen] = useState(false);
 

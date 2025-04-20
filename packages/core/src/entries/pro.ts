@@ -1,8 +1,14 @@
-export interface ProState {
-    wallet: ProStateWallet;
-    hasWalletAuthCookie: boolean;
+export interface ProStateAuthorized {
+    authorizedWallet: ProStateWallet;
     subscription: ProSubscription;
 }
+
+export interface ProStateNotAuthorized {
+    authorizedWallet: null;
+    subscription: ProSubscription;
+}
+
+export type ProState = ProStateAuthorized | ProStateNotAuthorized;
 
 export interface ProStateWallet {
     publicKey: string;
@@ -26,7 +32,13 @@ export interface ProSubscriptionTrial {
     usedTrial: true;
 }
 
-export type ProSubscriptionValid = ProSubscriptionPaid | ProSubscriptionTrial;
+export interface ProSubscriptionFree {
+    valid: true;
+    isTrial: false;
+    isFree: true;
+}
+
+export type ProSubscriptionValid = ProSubscriptionPaid | ProSubscriptionTrial | ProSubscriptionFree;
 
 export interface ProSubscriptionInvalid {
     valid: false;
@@ -50,4 +62,10 @@ export function isPaidSubscription(
     subscription: ProSubscription
 ): subscription is ProSubscriptionPaid {
     return subscription.valid && !subscription.isTrial;
+}
+
+export function isFreeSubscription(
+    subscription: ProSubscription | undefined
+): subscription is ProSubscriptionFree {
+    return !!subscription && subscription.valid && 'isFree' in subscription && subscription.isFree;
 }

@@ -1,14 +1,38 @@
 import React, {
+    ComponentProps,
+    createContext,
     forwardRef,
     PropsWithChildren,
     useContext,
     useLayoutEffect,
+    useMemo,
     useRef,
     useState
 } from 'react';
 import styled, { createGlobalStyle, css } from 'styled-components';
 import { AppSelectionContext, useAppContext } from '../hooks/appContext';
 import { mergeRefs } from '../libs/common';
+import { useAppTargetEnv } from '../hooks/appSdk';
+
+const ListBlockContext = createContext({ isDesktopAdaptive: false });
+
+export const ListBlockDesktopAdaptive = forwardRef<
+    HTMLDivElement,
+    PropsWithChildren<{ className?: string } & ComponentProps<typeof ListBlock>>
+>((props, ref) => {
+    const value = useMemo(
+        () => ({
+            isDesktopAdaptive: true
+        }),
+        []
+    );
+
+    return (
+        <ListBlockContext.Provider value={value}>
+            <ListBlockDesktop ref={ref} {...props} />
+        </ListBlockContext.Provider>
+    );
+});
 
 export const ListBlock = styled.div<{
     margin?: boolean;
@@ -78,6 +102,17 @@ export const ListBlock = styled.div<{
     }
 `;
 
+const ListBlockDesktop = styled(ListBlock)`
+    ${p =>
+        p.theme.displayType === 'full-width' &&
+        css`
+            background: transparent;
+            & > div {
+                border-radius: 0;
+            }
+        `}
+`;
+
 export const ListItemPayload = styled.div`
     flex-grow: 1;
     display: flex;
@@ -95,6 +130,7 @@ export const ListItemElement = styled.div<{
     dropDown?: boolean;
     ios?: boolean;
     isHover?: boolean;
+    isDesktopAdaptive?: boolean;
 }>`
     position: relative;
     display: flex;
@@ -141,10 +177,32 @@ export const ListItemElement = styled.div<{
         }
     }}
 
-  & + & > div {
+  &:not(:first-child) > div {
         border-top: 1px solid ${props => props.theme.separatorCommon};
         padding-top: 15px;
     }
+
+    ${p =>
+        p.isDesktopAdaptive &&
+        p.theme.displayType === 'full-width' &&
+        css`
+            background: transparent;
+            padding: 0;
+
+            & > div {
+                border-top: 1px solid ${props => props.theme.separatorCommon};
+                padding: 7px 1rem 8px;
+            }
+
+            &:last-child > div {
+                border-bottom: 1px solid ${props => props.theme.separatorCommon};
+                padding-bottom: 7px;
+            }
+
+            &:not(:first-child) > div {
+                padding-top: 7px;
+            }
+        `}
 `;
 
 export const GlobalListStyle = createGlobalStyle`
@@ -174,6 +232,11 @@ export const ListItem = forwardRef<
             setHover(false);
         }
     }, [ref.current, selection, setHover]);
+    const { isDesktopAdaptive } = useContext(ListBlockContext);
+    const env = useAppTargetEnv();
+    if (env === 'mobile') {
+        hover = false;
+    }
 
     return (
         <ListItemElement
@@ -182,6 +245,7 @@ export const ListItem = forwardRef<
             ref={mergeRefs(ref, externalRef)}
             dropDown={dropDown}
             ios={ios}
+            isDesktopAdaptive={isDesktopAdaptive}
             {...props}
         >
             {children}

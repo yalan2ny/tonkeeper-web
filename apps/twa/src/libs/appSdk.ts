@@ -33,14 +33,13 @@ export class TwaAppSdk extends BaseApp {
         const [miniApp] = initMiniApp();
         this.miniApp = miniApp;
         this.hapticFeedback = initHapticFeedback();
+        this.launchParams = retrieveLaunchParams();
 
-        this.notifications = new TwaNotification(miniApp);
+        this.notifications = new TwaNotification(miniApp, this.launchParams);
 
         const [backButton] = initBackButton();
 
         this.nativeBackButton = backButton;
-
-        this.launchParams = retrieveLaunchParams();
 
         const [mainButton] = initMainButton();
         this.mainButton = mainButton;
@@ -56,6 +55,9 @@ export class TwaAppSdk extends BaseApp {
     };
 
     openPage = async (url: string) => {
+        if (!url.startsWith('http')) {
+            throw new Error('Invalid url');
+        }
         if (url.includes('t.me')) {
             this.utils.openTelegramLink(url);
         } else {
@@ -69,8 +71,10 @@ export class TwaAppSdk extends BaseApp {
         }
     };
 
-    hapticNotification = (type: 'success' | 'error') => {
-        this.hapticFeedback.notificationOccurred(type);
+    hapticNotification = (type: 'success' | 'error' | 'impact_medium' | 'impact_light') => {
+        if (type === 'success' || type === 'error') {
+            this.hapticFeedback.notificationOccurred(type);
+        }
     };
 
     disableScroll = disableScroll;
@@ -79,7 +83,7 @@ export class TwaAppSdk extends BaseApp {
     getKeyboardHeight = () => 0;
 
     isIOs = () => true;
-    isStandalone = () => false;
+    isStandalone = () => true;
 
     version = packageJson.version ?? 'Unknown';
 

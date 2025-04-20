@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { Network, getApiConfig } from '@tonkeeper/core/dist/entries/network';
-import { WalletVersion } from "@tonkeeper/core/dist/entries/wallet";
-import { Account } from "@tonkeeper/core/dist/entries/account";
+import { Account } from '@tonkeeper/core/dist/entries/account';
+import { getApiConfig, Network } from '@tonkeeper/core/dist/entries/network';
+import { WalletVersion } from '@tonkeeper/core/dist/entries/wallet';
 import { InnerBody, useWindowsScroll } from '@tonkeeper/uikit/dist/components/Body';
 import { CopyNotification } from '@tonkeeper/uikit/dist/components/CopyNotification';
 import { Footer, FooterGlobalStyle } from '@tonkeeper/uikit/dist/components/Footer';
@@ -18,33 +18,40 @@ import {
     SettingsSkeletonPage
 } from '@tonkeeper/uikit/dist/components/Skeleton';
 import { SybHeaderGlobalStyle } from '@tonkeeper/uikit/dist/components/SubHeader';
-import {
-    AppContext,
-    IAppContext,
-} from '@tonkeeper/uikit/dist/hooks/appContext';
-import {
-    AfterImportAction,
-    AppSdkContext,
-    OnImportAction
-} from '@tonkeeper/uikit/dist/hooks/appSdk';
+import { AppContext, IAppContext } from '@tonkeeper/uikit/dist/hooks/appContext';
+import { AppSdkContext } from '@tonkeeper/uikit/dist/hooks/appSdk';
 import { StorageContext } from '@tonkeeper/uikit/dist/hooks/storage';
-import { I18nContext, TranslationContext } from '@tonkeeper/uikit/dist/hooks/translation';
-import { AppRoute, any } from '@tonkeeper/uikit/dist/libs/routes';
+import {
+    I18nContext,
+    TranslationContext,
+    useTWithReplaces
+} from '@tonkeeper/uikit/dist/hooks/translation';
+import { AppRoute } from '@tonkeeper/uikit/dist/libs/routes';
 import { Unlock } from '@tonkeeper/uikit/dist/pages/home/Unlock';
 
 import { Platform as TwaPlatform, initViewport } from '@tma.js/sdk';
 import { SDKProvider } from '@tma.js/sdk-react';
+import { ModalsRoot } from '@tonkeeper/uikit/dist/components/ModalsRoot';
 import { AmplitudeAnalyticsContext, useTrackLocation } from '@tonkeeper/uikit/dist/hooks/amplitude';
 import { useLock } from '@tonkeeper/uikit/dist/hooks/lock';
+import { useDebuggingTools } from '@tonkeeper/uikit/dist/hooks/useDebuggingTools';
 import { UnlockNotification } from '@tonkeeper/uikit/dist/pages/home/UnlockNotification';
-import { useTonendpoint, useTonenpointConfig } from "@tonkeeper/uikit/dist/state/tonendpoint";
-import { useActiveAccountQuery, useAccountsStateQuery, useActiveTonNetwork } from "@tonkeeper/uikit/dist/state/wallet";
+import { useDevSettings } from '@tonkeeper/uikit/dist/state/dev';
+import { useUserFiatQuery } from '@tonkeeper/uikit/dist/state/fiat';
+import { useUserLanguage } from '@tonkeeper/uikit/dist/state/language';
+import { useSwapMobileNotification } from '@tonkeeper/uikit/dist/state/swap/useSwapMobileNotification';
+import { useTonendpoint, useTonenpointConfig } from '@tonkeeper/uikit/dist/state/tonendpoint';
+import {
+    useAccountsStateQuery,
+    useActiveAccountQuery,
+    useActiveTonNetwork
+} from '@tonkeeper/uikit/dist/state/wallet';
 import { defaultTheme } from '@tonkeeper/uikit/dist/styles/defaultTheme';
 import { Container, GlobalStyle } from '@tonkeeper/uikit/dist/styles/globalStyle';
 import { lightTheme } from '@tonkeeper/uikit/dist/styles/lightTheme';
 import React, { FC, PropsWithChildren, Suspense, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Route, Switch, useLocation } from "react-router-dom";
 import styled, { ThemeProvider } from 'styled-components';
 import StandardErrorBoundary from './components/ErrorBoundary';
 import { InitDataLogger } from './components/InitData';
@@ -55,12 +62,11 @@ import { SwapScreen } from './components/swap/SwapNotification';
 import { TwaSendNotification } from './components/transfer/SendNotifications';
 import { TwaAppSdk } from './libs/appSdk';
 import { useAnalytics, useTwaAppViewport } from './libs/hooks';
-import { useUserFiat } from "@tonkeeper/uikit/dist/state/fiat";
-import { useUserLanguage } from "@tonkeeper/uikit/dist/state/language";
-import { useSwapMobileNotification } from "@tonkeeper/uikit/dist/state/swap/useSwapMobileNotification";
-import { useDevSettings } from "@tonkeeper/uikit/dist/state/dev";
-import { ModalsRoot } from "@tonkeeper/uikit/dist/components/ModalsRoot";
-import { useDebuggingTools } from "@tonkeeper/uikit/dist/hooks/useDebuggingTools";
+import { useGlobalPreferencesQuery } from '@tonkeeper/uikit/dist/state/global-preferences';
+import { useGlobalSetup } from '@tonkeeper/uikit/dist/state/globalSetup';
+import { useNavigate } from "@tonkeeper/uikit/dist/hooks/router/useNavigate";
+import { useRealtimeUpdatesInvalidation } from '@tonkeeper/uikit/dist/hooks/realtime';
+import { RedirectFromDesktopSettings } from "@tonkeeper/uikit/dist/pages/settings/RedirectFromDesktopSettings";
 
 const Initialize = React.lazy(() => import('@tonkeeper/uikit/dist/pages/import/Initialize'));
 const ImportRouter = React.lazy(() => import('@tonkeeper/uikit/dist/pages/import'));
@@ -159,7 +165,9 @@ const getUsePadding = (platform: TwaPlatform): boolean => {
 };
 
 const TwaApp: FC<{ sdk: TwaAppSdk }> = ({ sdk }) => {
-    const { t, i18n } = useTranslation();
+    const { t: tSimple, i18n } = useTranslation();
+
+    const t = useTWithReplaces(tSimple);
 
     const translation = useMemo(() => {
         const client: I18nContext = {
@@ -222,66 +230,82 @@ export const Loader: FC<{ sdk: TwaAppSdk }> = ({ sdk }) => {
     const { data: activeAccount, isLoading: activeWalletLoading } = useActiveAccountQuery();
     const { data: accounts, isLoading: isWalletsLoading } = useAccountsStateQuery();
     const { data: lang, isLoading: isLangLoading } = useUserLanguage();
-    const { data: fiat } = useUserFiat();
+    const { data: fiat } = useUserFiatQuery();
     const { data: devSettings } = useDevSettings();
+    const { isLoading: globalPreferencesLoading } = useGlobalPreferencesQuery();
+    const { isLoading: globalSetupLoading } = useGlobalSetup();
 
     const lock = useLock(sdk);
     const network = useActiveTonNetwork();
 
     const tonendpoint = useTonendpoint({
-       targetEnv: TARGET_ENV,
-       build: sdk.version,
-       network,
-       lang
-}
+        targetEnv: TARGET_ENV,
+        build: sdk.version,
+        network,
+        lang
+    });
+    const { data: serverConfig } = useTonenpointConfig(tonendpoint);
+
+    const { data: tracker } = useAnalytics(
+        activeAccount || undefined,
+        accounts,
+        network,
+        sdk.version
     );
-    const { data: config } = useTonenpointConfig(tonendpoint);
 
-    const navigate = useNavigate();
-    const { data: tracker } = useAnalytics(activeAccount || undefined, accounts, network, sdk.version);
-
-    if (isWalletsLoading || activeWalletLoading || isLangLoading || config === undefined || lock === undefined || fiat === undefined || !devSettings) {
+    if (
+        isWalletsLoading ||
+        activeWalletLoading ||
+        isLangLoading ||
+        serverConfig === undefined ||
+        lock === undefined ||
+        fiat === undefined ||
+        !devSettings ||
+        globalPreferencesLoading ||
+        globalSetupLoading
+    ) {
         return <Loading />;
     }
 
     const showQrScan = seeIfShowQrScanner(sdk.launchParams.platform);
 
     const context: IAppContext = {
-        api: getApiConfig(config, network),
+        mainnetApi: getApiConfig(serverConfig.mainnetConfig, Network.MAINNET),
+        testnetApi: getApiConfig(serverConfig.testnetConfig, Network.TESTNET),
         fiat,
-        config,
+        mainnetConfig: serverConfig.mainnetConfig,
+        testnetConfig: serverConfig.testnetConfig,
         tonendpoint,
         standalone: true,
         extension: false,
         ios: true,
         proFeatures: false,
         hideLedger: true,
-        hideBrowser: true,
         hideSigner: !showQrScan,
         hideKeystone: !showQrScan,
         hideQrScanner: !showQrScan,
-        defaultWalletVersion: WalletVersion.V5R1
+        hideMam: true,
+        hideMultisig: true,
+        defaultWalletVersion: WalletVersion.V5R1,
+        browserLength: 4,
+        env: {
+            tronApiKey: import.meta.env.VITE_APP_TRON_API_KEY
+        }
     };
 
     return (
         <AmplitudeAnalyticsContext.Provider value={tracker}>
-            <OnImportAction.Provider value={navigate}>
-                <AfterImportAction.Provider
-                    value={() => navigate(AppRoute.home, { replace: true })}
-                >
-                    <AppContext.Provider value={context}>
-                        <Content
-                            activeAccount={activeAccount}
-                            lock={lock}
-                            showQrScan={showQrScan}
-                            sdk={sdk}
-                        />
-                        <CopyNotification />
-                        <ModalsRoot />
-                        {showQrScan && <TwaQrScanner />}
-                    </AppContext.Provider>
-                </AfterImportAction.Provider>
-            </OnImportAction.Provider>
+            <AppContext.Provider value={context}>
+                <Content
+                    activeAccount={activeAccount}
+                    lock={lock}
+                    showQrScan={showQrScan}
+                    sdk={sdk}
+                />
+                <CopyNotification />
+                <ModalsRoot />
+                {showQrScan && <TwaQrScanner />}
+            </AppContext.Provider>
         </AmplitudeAnalyticsContext.Provider>
     );
 };
@@ -305,10 +329,7 @@ const InitPages: FC<{ sdk: TwaAppSdk }> = ({ sdk }) => {
     return (
         <InitWrapper>
             <Suspense fallback={<Loading />}>
-                <Routes>
-                    <Route path={any(AppRoute.import)} element={<ImportRouter />} />
-                    <Route path="*" element={<Initialize />} />
-                </Routes>
+                <Initialize />
             </Suspense>
         </InitWrapper>
     );
@@ -324,6 +345,7 @@ const Content: FC<{
     useWindowsScroll();
     useTrackLocation();
     useDebuggingTools();
+    useRealtimeUpdatesInvalidation();
 
     if (lock) {
         return (
@@ -339,14 +361,16 @@ const Content: FC<{
 
     return (
         <>
-          <Routes>
-            <Route path={AppRoute.swap} element={<SwapScreen />} />
-            <Route path={'*'} element={<MainPages showQrScan={showQrScan} sdk={sdk} />} />
-          </Routes>
-          <Suspense>
-            <PairSignerNotification />
-            <PairKeystoneNotification />
-          </Suspense>
+            <Switch>
+                <Route path={AppRoute.swap} component={SwapScreen} />
+                <Route path="*">
+                    <MainPages showQrScan={showQrScan} sdk={sdk} />
+                </Route>
+            </Switch>
+            <Suspense>
+                <PairSignerNotification />
+                <PairKeystoneNotification />
+            </Suspense>
         </>
     );
 };
@@ -376,55 +400,51 @@ const MainPages: FC<{ showQrScan: boolean; sdk: TwaAppSdk }> = ({ showQrScan, sd
     return (
         <TwaNotification>
             <Wrapper standalone={getUsePadding(sdk.launchParams.platform)}>
-                <Routes>
+                <Switch>
                     <Route
                         path={AppRoute.activity}
-                        element={
-                            <Suspense fallback={<ActivitySkeletonPage />}>
-                                <Activity />
-                            </Suspense>
-                        }
-                    />
+                    >
+                        <Suspense fallback={<ActivitySkeletonPage />}>
+                            <Activity />
+                        </Suspense>
+                    </Route>
                     <Route
-                        path={any(AppRoute.browser)}
-                        element={
-                            <Suspense fallback={<BrowserSkeletonPage />}>
-                                <Browser />
-                            </Suspense>
-                        }
-                    />
+                        path={AppRoute.browser}
+                    >
+                        <Suspense fallback={<BrowserSkeletonPage />}>
+                            <Browser />
+                        </Suspense>
+                    </Route>
                     <Route
-                        path={any(AppRoute.settings)}
-                        element={
-                            <Suspense fallback={<SettingsSkeletonPage />}>
-                                <Settings />
-                            </Suspense>
-                        }
-                    />
-                    <Route path={AppRoute.coins}>
-                        <Route
-                            path=":name/*"
-                            element={
-                                <Suspense fallback={<CoinSkeletonPage />}>
-                                    <Coin />
-                                </Suspense>
-                            }
-                        />
+                        path={AppRoute.settings}
+                    >
+                        <Suspense fallback={<SettingsSkeletonPage />}>
+                            <Settings />
+                        </Suspense>
+                    </Route>
+                    <Route
+                      path={AppRoute.walletSettings}
+                    >
+                      <RedirectFromDesktopSettings />
+                    </Route>
+                    <Route path={`${AppRoute.coins}/:name`}>
+                        <Suspense fallback={<CoinSkeletonPage />}>
+                            <Coin />
+                        </Suspense>
                     </Route>
                     <Route
                         path="*"
-                        element={
-                            <>
-                                <Header showQrScan={showQrScan} />
-                                <InnerBody>
-                                    <Suspense fallback={<HomeSkeleton />}>
-                                        <Home />
-                                    </Suspense>
-                                </InnerBody>
-                            </>
-                        }
-                    />
-                </Routes>
+                    >
+                        <>
+                            <Header showQrScan={showQrScan} />
+                            <InnerBody>
+                                <Suspense fallback={<HomeSkeleton />}>
+                                    <Home />
+                                </Suspense>
+                            </InnerBody>
+                        </>
+                    </Route>
+                </Switch>
                 <Footer standalone={getUsePadding(sdk.launchParams.platform)} />
                 <MemoryScroll />
                 <Suspense>

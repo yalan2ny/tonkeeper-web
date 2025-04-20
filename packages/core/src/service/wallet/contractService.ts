@@ -1,15 +1,15 @@
 import { beginCell, storeStateInit } from '@ton/core';
+import { Network } from '../../entries/network';
+import { TonWalletStandard, WalletVersion } from '../../entries/wallet';
 import { WalletContractV3R1 } from '@ton/ton/dist/wallets/WalletContractV3R1';
 import { WalletContractV3R2 } from '@ton/ton/dist/wallets/WalletContractV3R2';
 import { WalletContractV4 } from '@ton/ton/dist/wallets/WalletContractV4';
 import { WalletContractV5Beta } from '@ton/ton/dist/wallets/WalletContractV5Beta';
 import { WalletContractV5R1 } from '@ton/ton/dist/wallets/WalletContractV5R1';
-import { Network } from '../../entries/network';
-import { TonWalletStandard, WalletVersion } from '../../entries/wallet';
 
 export const walletContractFromState = (wallet: TonWalletStandard) => {
     const publicKey = Buffer.from(wallet.publicKey, 'hex');
-    return walletContract(publicKey, wallet.version);
+    return walletContract(publicKey, wallet.version, wallet.network ?? Network.MAINNET);
 };
 
 const workchain = 0;
@@ -17,10 +17,14 @@ const workchain = 0;
 export type WalletContract = ReturnType<typeof walletContract>;
 
 export const walletContract = (
-    publicKey: Buffer,
+    publicKey: Buffer | string,
     version: WalletVersion,
-    network = Network.MAINNET
+    network: Network
 ) => {
+    if (typeof publicKey === 'string') {
+        publicKey = Buffer.from(publicKey, 'hex');
+    }
+
     switch (version) {
         case WalletVersion.V3R1:
             return WalletContractV3R1.create({ workchain, publicKey });
@@ -38,7 +42,13 @@ export const walletContract = (
                 publicKey
             });
         case WalletVersion.V5R1:
-            return WalletContractV5R1.create({ workChain: workchain, publicKey });
+            return WalletContractV5R1.create({
+                workchain: workchain,
+                walletId: {
+                    networkGlobalId: network
+                },
+                publicKey
+            });
     }
 };
 

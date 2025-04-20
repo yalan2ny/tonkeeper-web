@@ -10,19 +10,21 @@ import {
     tonAssetAddressFromString,
     tonAssetAddressToString
 } from '@tonkeeper/core/dist/entries/crypto/asset/ton-asset';
-import { JettonsApi } from '@tonkeeper/core/dist/tonApiV2';
+import { JettonsApi, JettonVerificationType } from '@tonkeeper/core/dist/tonApiV2';
 import { shiftedDecimals } from '@tonkeeper/core/dist/utils/balance';
 import { seeIfValidTonAddress } from '@tonkeeper/core/dist/utils/common';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 import { useAppContext } from '../../hooks/appContext';
 import { useAppSdk } from '../../hooks/appSdk';
-import { atom, useAtom } from '../../libs/atom';
+import { useAtom } from '../../libs/useAtom';
 import { QueryKey } from '../../libs/queryKey';
 import { useAssets } from '../home';
 import { useJettonList } from '../jetton';
 import { useRate } from '../rates';
 import { useSwapsConfig } from './useSwapsConfig';
+import { useActiveApi } from '../wallet';
+import { atom } from '@tonkeeper/core/dist/entries/atom';
 
 export function useAllSwapAssets() {
     const { swapService } = useSwapsConfig();
@@ -160,7 +162,8 @@ export const useSwapCustomTokenSearch = () => {
     const [filter] = useSwapTokensFilter();
 
     const isAddress = seeIfValidTonAddress(filter);
-    const { api, fiat } = useAppContext();
+    const { fiat } = useAppContext();
+    const api = useActiveApi();
     const { data: jettons } = useJettonList();
 
     return useQuery<WalletSwapAsset | null>({
@@ -178,12 +181,13 @@ export const useSwapCustomTokenSearch = () => {
 
                 const tonAsset: TonAsset = {
                     address,
-                    image: response.metadata.image,
+                    image: response.preview,
                     blockchain: BLOCKCHAIN_NAME.TON,
                     name: response.metadata.name,
                     symbol: response.metadata.symbol,
                     decimals: Number(response.metadata.decimals),
-                    id: packAssetId(BLOCKCHAIN_NAME.TON, address)
+                    id: packAssetId(BLOCKCHAIN_NAME.TON, address),
+                    verification: response.verification
                 };
 
                 const jb = jettons?.balances.find(j =>
@@ -233,7 +237,8 @@ export const useUserCustomSwapAssets = () => {
                 ...s,
                 blockchain: s.blockchain as BLOCKCHAIN_NAME.TON,
                 address: tonAssetAddressFromString(s.address),
-                id: packAssetId(s.blockchain as BLOCKCHAIN_NAME, s.address)
+                id: packAssetId(s.blockchain as BLOCKCHAIN_NAME, s.address),
+                verification: JettonVerificationType.Whitelist
             })) || []
         );
     });

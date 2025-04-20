@@ -4,18 +4,25 @@ import { BLOCKCHAIN_NAME } from './entries/crypto';
 import { EventEmitter, IEventEmitter } from './entries/eventEmitter';
 import { NFT } from './entries/nft';
 import { FavoriteSuggestion, LatestSuggestion } from './entries/suggestion';
-import { TonTransferParams } from './service/deeplinkingService';
+import { TonContract, TonWalletStandard } from './entries/wallet';
 import { KeystoneMessageType, KeystonePathInfo } from './service/keystone/types';
-import { LedgerTransaction } from './service/ledger/connector';
-import { TonWalletStandard } from './entries/wallet';
+import { LedgerTonProofRequest, LedgerTransaction } from './service/ledger/connector';
+import { TonTransferParams } from './service/deeplinkingService';
+import { atom, ReadonlyAtom } from './entries/atom';
 
 export type GetPasswordType = 'confirm' | 'unlock';
 
-export type TransferInitParams = {
-    transfer?: TonTransferParams;
-    asset?: string;
-    chain?: BLOCKCHAIN_NAME;
-};
+export type TransferInitParams =
+    | (TonTransferParams & {
+          chain: BLOCKCHAIN_NAME.TON;
+          from: string;
+      })
+    | {
+          chain: BLOCKCHAIN_NAME.TRON;
+          from: string;
+          address?: string;
+      }
+    | Record<string, never>;
 
 export type ReceiveInitParams = {
     chain?: BLOCKCHAIN_NAME;
@@ -33,8 +40,13 @@ export interface UIEvents {
     resize: void;
     navigate: void;
     getPassword: void;
-    signer: string;
-    ledger: { path: number[]; transaction: LedgerTransaction };
+    signer: {
+        boc: string;
+        wallet: TonWalletStandard;
+    };
+    ledger:
+        | { path: number[]; transactions: LedgerTransaction[] }
+        | { path: number[]; tonProof: LedgerTonProofRequest };
     keystone: { message: Buffer; messageType: KeystoneMessageType; pathInfo?: KeystonePathInfo };
     loading: void;
     transfer: TransferInitParams;
@@ -46,6 +58,9 @@ export interface UIEvents {
     editSuggestion: FavoriteSuggestion;
     response: any;
     toast: string;
+    signerTxResponse: {
+        signatureHex: string;
+    };
 }
 
 export interface NativeBackButton {
@@ -65,10 +80,14 @@ export interface TouchId {
     prompt: (reason: (lang: string) => string) => Promise<void>;
 }
 
+export interface CookieService {
+    cleanUp: () => Promise<void>;
+}
+
 export interface NotificationService {
     subscribe: (
         api: APIConfig,
-        wallet: TonWalletStandard,
+        wallet: TonContract,
         signTonConnect: (bufferToSign: Buffer) => Promise<Buffer | Uint8Array>
     ) => Promise<void>;
     unsubscribe: (address?: string) => Promise<void>;
@@ -79,10 +98,16 @@ export interface NotificationService {
     subscribed: (address: string) => Promise<boolean>;
 }
 
+export interface InternetConnectionService {
+    isOnline: ReadonlyAtom<boolean>;
+    retry: () => Promise<boolean>;
+}
+
 export interface IAppSdk {
     storage: IStorage;
     nativeBackButton?: NativeBackButton;
     keychain?: KeychainPassword;
+    cookie?: CookieService;
     touchId?: TouchId;
 
     topMessage: (text: string) => void;
@@ -105,10 +130,16 @@ export interface IAppSdk {
 
     requestExtensionPermission: () => Promise<void>;
     twaExpand?: () => void;
-    hapticNotification: (type: 'success' | 'error') => void;
+    hapticNotification: (type: 'success' | 'error' | 'impact_medium' | 'impact_light') => void;
 
     notifications?: NotificationService;
     targetEnv: TargetEnv;
+
+    storeUrl?: string;
+    reloadApp: () => void;
+    connectionService: InternetConnectionService;
+
+    signerReturnUrl?: string;
 }
 
 export abstract class BaseApp implements IAppSdk {
@@ -158,11 +189,36 @@ export abstract class BaseApp implements IAppSdk {
 
     twaExpand = () => {};
 
-    hapticNotification = (type: 'success' | 'error') => {};
+    hapticNotification = (_: 'success' | 'error' | 'impact_medium' | 'impact_light') => {};
 
     version = '0.0.0';
 
+    reloadApp = () => {
+        window.location.reload();
+    };
+
+    connectionService: InternetConnectionService = new WebConnectionService();
+
     abstract targetEnv: TargetEnv;
+}
+
+class WebConnectionService implements InternetConnectionService {
+    isOnline = atom(this.checkIsOnline());
+
+    constructor() {
+        window.addEventListener('online', () => this.isOnline.next(true));
+        window.addEventListener('offline', () => this.isOnline.next(false));
+    }
+
+    private checkIsOnline() {
+        return window.navigator.onLine;
+    }
+
+    public async retry() {
+        const isOnline = this.checkIsOnline();
+        this.isOnline.next(isOnline);
+        return isOnline;
+    }
 }
 
 export class MockAppSdk extends BaseApp {
@@ -173,4 +229,11 @@ export class MockAppSdk extends BaseApp {
     }
 }
 
-export type TargetEnv = 'web' | 'extension' | 'desktop' | 'twa';
+export type TargetEnv =
+    | 'web'
+    | 'extension'
+    | 'desktop'
+    | 'twa'
+    | 'tablet'
+    | 'swap_widget_web'
+    | 'mobile';

@@ -1,16 +1,15 @@
 import { TransferInitParams } from '@tonkeeper/core/dist/AppSdk';
 import { BLOCKCHAIN_NAME } from '@tonkeeper/core/dist/entries/crypto';
 import { AssetAmount } from '@tonkeeper/core/dist/entries/crypto/asset/asset-amount';
-import { toTronAsset } from '@tonkeeper/core/dist/entries/crypto/asset/constants';
-import { jettonToTonAsset } from '@tonkeeper/core/dist/entries/crypto/asset/ton-asset';
-import { RecipientData } from '@tonkeeper/core/dist/entries/send';
+import { jettonToTonAsset, TonAsset } from '@tonkeeper/core/dist/entries/crypto/asset/ton-asset';
+import { RecipientData, TonRecipientData } from '@tonkeeper/core/dist/entries/send';
 import {
-    TonTransferParams,
-    parseTonTransfer
+    parseTonTransferWithAddress,
+    TonTransferParams
 } from '@tonkeeper/core/dist/service/deeplinkingService';
 import { shiftedDecimals } from '@tonkeeper/core/dist/utils/balance';
 import BigNumber from 'bignumber.js';
-import { FC, useCallback, useEffect, useRef, useState } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CSSTransition, TransitionGroup } from 'react-transition-group';
 import { useAppContext } from '../../hooks/appContext';
 import { useAppSdk } from '../../hooks/appSdk';
@@ -18,7 +17,7 @@ import { openIosKeyboard } from '../../hooks/ios';
 import { useTranslation } from '../../hooks/translation';
 import { useIsFullWidthMode } from '../../hooks/useIsFullWidthMode';
 import { useJettonList } from '../../state/jetton';
-import { useTronBalances } from '../../state/tron/tron';
+import { useActiveTronWallet } from '../../state/tron/tron';
 import {
     Notification,
     NotificationFooter,
@@ -39,16 +38,27 @@ import { AmountState } from './amountView/amountState';
 import {
     AmountHeaderBlock,
     AmountMainButton,
+    childFactoryCreator,
     ConfirmMainButton,
+    duration,
     InitTransferData,
     MainButton,
+    makeTransferInitAmountState,
+    makeTonTransferInitData,
     RecipientHeaderBlock,
     Wrapper,
-    childFactoryCreator,
-    duration,
-    getInitData,
-    getJetton
+    makeTronTransferInitData,
+    TransferViewHeaderBlock
 } from './common';
+import { MultisigOrderFormView } from './MultisigOrderFormView';
+import { MultisigOrderLifetimeMinutes } from '../../libs/multisig';
+import { useIsActiveAccountMultisig } from '../../state/multisig';
+import { ConfirmMultisigNewTransferView } from './ConfirmMultisigNewTransferView';
+import { useAnalyticsTrack } from '../../hooks/amplitude';
+import { TRON_USDT_ASSET } from '@tonkeeper/core/dist/entries/crypto/asset/constants';
+import { seeIfValidTonAddress, seeIfValidTronAddress } from '@tonkeeper/core/dist/utils/common';
+import { useActiveWallet } from '../../state/wallet';
+import styled, { css } from 'styled-components';
 
 const SendContent: FC<{
     onClose: () => void;
@@ -61,15 +71,42 @@ const SendContent: FC<{
     const { t } = useTranslation();
     const { data: filter } = useJettonList();
     const isFullWidth = useIsFullWidthMode();
+    const isActiveAccountMultisig = useIsActiveAccountMultisig();
+    const track = useAnalyticsTrack();
 
-    const [view, setView] = useState<'recipient' | 'amount' | 'confirm'>('recipient');
+    const [view, _setView] = useState<'multisig-settings' | 'recipient' | 'amount' | 'confirm'>(
+        isActiveAccountMultisig ? 'multisig-settings' : 'recipient'
+    );
+    const setView = useCallback(
+        (val: typeof view) => {
+            if (!isActiveAccountMultisig && val === 'multisig-settings') {
+                val = 'recipient';
+            }
+
+            _setView(val);
+        },
+        [_setView, isActiveAccountMultisig]
+    );
+
     const [right, setRight] = useState(true);
+    const [multisigTimeout, setMultisigTimeout] = useState<
+        MultisigOrderLifetimeMinutes | undefined
+    >();
     const [recipient, _setRecipient] = useState<RecipientData | undefined>(initRecipient);
     const [amountViewState, setAmountViewState] = useState<Partial<AmountState> | undefined>(
         initAmountState
     );
 
-    const { data: tronBalances } = useTronBalances();
+    useEffect(() => {
+        if (initRecipient) {
+            track('send_click', {
+                from: 'send_amount',
+                token: amountViewState?.token?.symbol ?? 'ton'
+            });
+        }
+    }, []);
+
+    const activeTronWallet = useActiveTronWallet();
 
     const { mutateAsync: getAccountAsync, isLoading: isAccountLoading } = useGetToAccount();
 
@@ -82,8 +119,8 @@ const SendContent: FC<{
         }
 
         _setRecipient(value);
-        if (tronBalances && value.address.blockchain === BLOCKCHAIN_NAME.TRON) {
-            setAmountViewState({ token: toTronAsset(tronBalances.balances[0]) });
+        if (activeTronWallet && value.address.blockchain === BLOCKCHAIN_NAME.TRON) {
+            setAmountViewState({ token: TRON_USDT_ASSET });
         }
     };
 
@@ -91,12 +128,20 @@ const SendContent: FC<{
         setRight(true);
         setRecipient(data);
         setView('amount');
+        track('send_click', {
+            from: 'send_recipient',
+            token: amountViewState?.token?.symbol ?? 'ton'
+        });
     };
 
     const onConfirmAmount = (data: AmountState) => {
         setRight(true);
         setAmountViewState(data);
         setView('confirm');
+        track('send_confirm', {
+            from: 'send_amount',
+            token: amountViewState?.token?.symbol ?? 'ton'
+        });
     };
 
     const backToRecipient = (data?: AmountState) => {
@@ -112,6 +157,9 @@ const SendContent: FC<{
     };
 
     const processTron = (address: string) => {
+        if (!activeTronWallet) {
+            return;
+        }
         const item = { address: address, blockchain: BLOCKCHAIN_NAME.TRON } as const;
 
         setRecipient({
@@ -121,7 +169,7 @@ const SendContent: FC<{
         setView('amount');
     };
 
-    const processRecipient = async ({ address, text }: TonTransferParams) => {
+    const processRecipient = async ({ address, text }: { address: string; text?: string }) => {
         const item = { address: address, blockchain: BLOCKCHAIN_NAME.TON } as const;
         const toAccount = await getAccountAsync(item);
 
@@ -178,7 +226,7 @@ const SendContent: FC<{
     );
 
     const onScan = async (signature: string) => {
-        const param = parseTonTransfer({ url: signature });
+        const param = parseTonTransferWithAddress({ url: signature });
 
         if (param) {
             const ok = await processJetton(param);
@@ -188,10 +236,9 @@ const SendContent: FC<{
             return;
         }
 
-        // TODO: ENABLE TRON
-        // if (seeIfValidTronAddress(signature)) {
-        //     return processTron(signature);
-        // }
+        if (seeIfValidTronAddress(signature)) {
+            return processTron(signature);
+        }
 
         return sdk.uiEvents.emit('copy', {
             method: 'copy',
@@ -199,15 +246,41 @@ const SendContent: FC<{
         });
     };
 
+    const multisigSettingsRef = useRef<HTMLDivElement>(null);
     const recipientRef = useRef<HTMLDivElement>(null);
     const amountRef = useRef<HTMLDivElement>(null);
     const confirmRef = useRef<HTMLDivElement>(null);
 
     const nodeRef = {
+        'multisig-settings': multisigSettingsRef,
         recipient: recipientRef,
         amount: amountRef,
         confirm: confirmRef
     }[view];
+
+    const assetAmount = useMemo(() => {
+        if (!amountViewState?.token || !amountViewState?.coinValue) {
+            return null;
+        }
+
+        return AssetAmount.fromRelativeAmount({
+            asset: amountViewState!.token!,
+            amount: amountViewState!.coinValue!
+        });
+    }, [amountViewState?.token?.id, amountViewState?.coinValue]);
+
+    let acceptBlockchains: BLOCKCHAIN_NAME[] = [];
+    if (chain) {
+        if (chain === BLOCKCHAIN_NAME.TRON && !activeTronWallet) {
+            acceptBlockchains = [BLOCKCHAIN_NAME.TON];
+        } else {
+            acceptBlockchains = [chain];
+        }
+    } else {
+        acceptBlockchains = activeTronWallet
+            ? [BLOCKCHAIN_NAME.TON, BLOCKCHAIN_NAME.TRON]
+            : [BLOCKCHAIN_NAME.TON];
+    }
 
     return (
         <Wrapper standalone={standalone} extension={extension}>
@@ -222,6 +295,23 @@ const SendContent: FC<{
                 >
                     {status => (
                         <div ref={nodeRef}>
+                            {view === 'multisig-settings' && (
+                                <MultisigOrderFormView
+                                    onSubmit={val => {
+                                        setRight(true);
+                                        setMultisigTimeout(val.lifetime);
+                                        setView('recipient');
+                                    }}
+                                    isAnimationProcess={status === 'exiting'}
+                                    header={
+                                        <TransferViewHeaderBlock
+                                            title={t('multisig_create_order_title')}
+                                            onClose={onClose}
+                                        />
+                                    }
+                                    MainButton={MainButton}
+                                />
+                            )}
                             {view === 'recipient' && (
                                 <RecipientView
                                     data={recipient}
@@ -229,10 +319,18 @@ const SendContent: FC<{
                                     onScan={onScan}
                                     keyboard="decimal"
                                     isExternalLoading={isAccountLoading}
-                                    acceptBlockchains={chain ? [chain] : undefined}
+                                    acceptBlockchains={acceptBlockchains}
                                     MainButton={MainButton}
                                     HeaderBlock={() => (
                                         <RecipientHeaderBlock
+                                            onBack={
+                                                isActiveAccountMultisig
+                                                    ? () => {
+                                                          setRight(false);
+                                                          setView('multisig-settings');
+                                                      }
+                                                    : undefined
+                                            }
                                             title={t('transaction_recipient')}
                                             onClose={onClose}
                                         />
@@ -252,39 +350,72 @@ const SendContent: FC<{
                                     isAnimationProcess={status === 'exiting'}
                                 />
                             )}
-                            {view === 'confirm' && (
-                                <ConfirmTransferView
-                                    onClose={onClose}
-                                    onBack={backToAmount}
-                                    recipient={recipient!}
-                                    assetAmount={AssetAmount.fromRelativeAmount({
-                                        asset: amountViewState!.token!,
-                                        amount: amountViewState!.coinValue!
-                                    })}
-                                    isMax={amountViewState!.isMax!}
-                                >
-                                    {status !== 'exiting' && isFullWidth && (
+                            {view === 'confirm' &&
+                                (isActiveAccountMultisig ? (
+                                    <ConfirmMultisigNewTransferView
+                                        onClose={onClose}
+                                        onBack={backToAmount}
+                                        recipient={recipient as TonRecipientData}
+                                        assetAmount={
+                                            AssetAmount.fromRelativeAmount({
+                                                asset: amountViewState!.token!,
+                                                amount: amountViewState!.coinValue!
+                                            }) as AssetAmount<TonAsset>
+                                        }
+                                        isMax={amountViewState!.isMax!}
+                                        ttl={multisigTimeout!}
+                                    >
                                         <ConfirmViewTitleSlot>
-                                            <NotificationHeaderPortal>
-                                                <NotificationHeader>
-                                                    <ConfirmViewTitle />
-                                                </NotificationHeader>
-                                            </NotificationHeaderPortal>
+                                            {status !== 'exiting' && (
+                                                <NotificationHeaderPortal>
+                                                    <NotificationHeader>
+                                                        <ConfirmViewTitle />
+                                                    </NotificationHeader>
+                                                </NotificationHeaderPortal>
+                                            )}
                                         </ConfirmViewTitleSlot>
-                                    )}
-                                    {status !== 'exiting' && isFullWidth && (
                                         <ConfirmViewButtonsSlot>
-                                            <NotificationFooterPortal>
-                                                <NotificationFooter>
-                                                    <ConfirmViewButtons
-                                                        MainButton={ConfirmMainButton}
-                                                    />
-                                                </NotificationFooter>
-                                            </NotificationFooterPortal>
+                                            {status !== 'exiting' && (
+                                                <NotificationFooterPortal>
+                                                    <NotificationFooter>
+                                                        <ConfirmViewButtons
+                                                            MainButton={ConfirmMainButton}
+                                                        />
+                                                    </NotificationFooter>
+                                                </NotificationFooterPortal>
+                                            )}
                                         </ConfirmViewButtonsSlot>
-                                    )}
-                                </ConfirmTransferView>
-                            )}
+                                    </ConfirmMultisigNewTransferView>
+                                ) : (
+                                    <ConfirmTransferView
+                                        onClose={onClose}
+                                        onBack={backToAmount}
+                                        recipient={recipient!}
+                                        assetAmount={assetAmount!}
+                                        isMax={amountViewState!.isMax!}
+                                    >
+                                        <ConfirmViewTitleSlot>
+                                            {status !== 'exiting' && (
+                                                <NotificationHeaderPortal>
+                                                    <NotificationHeader>
+                                                        <ConfirmViewTitle />
+                                                    </NotificationHeader>
+                                                </NotificationHeaderPortal>
+                                            )}
+                                        </ConfirmViewTitleSlot>
+                                        <ConfirmViewButtonsSlot>
+                                            {status !== 'exiting' && (
+                                                <NotificationFooterPortal>
+                                                    <NotificationFooter>
+                                                        <ConfirmViewButtons
+                                                            MainButton={ConfirmMainButton}
+                                                        />
+                                                    </NotificationFooter>
+                                                </NotificationFooterPortal>
+                                            )}
+                                        </ConfirmViewButtonsSlot>
+                                    </ConfirmTransferView>
+                                ))}
                         </div>
                     )}
                 </CSSTransition>
@@ -293,14 +424,24 @@ const SendContent: FC<{
     );
 };
 
+const NotificationStyled = styled(Notification)`
+    ${p =>
+        p.theme.proDisplayType === 'mobile' &&
+        css`
+            --height: calc(100% - (env(safe-area-inset-top) + 10px));
+        `}
+`;
+
 const SendActionNotification = () => {
     const [open, setOpen] = useState(false);
     const [chain, setChain] = useState<BLOCKCHAIN_NAME | undefined>(undefined);
-    const [tonTransfer, setTonTransfer] = useState<InitTransferData | undefined>(undefined);
+    const [transferParams, setTransferParams] = useState<InitTransferData | undefined>(undefined);
     const { data: jettons } = useJettonList();
+    const wallet = useActiveWallet();
 
     const { mutateAsync: getAccountAsync, reset } = useGetToAccount();
     const sdk = useAppSdk();
+    const track = useAnalyticsTrack();
 
     useEffect(() => {
         const handler = (options: {
@@ -310,46 +451,68 @@ const SendActionNotification = () => {
         }) => {
             reset();
 
-            const { transfer, asset } = options.params;
+            const transfer = options.params;
             setChain(options.params.chain);
-            if (transfer) {
-                getAccountAsync({ address: transfer.address }).then(account => {
-                    setTonTransfer(getInitData(transfer, account, jettons));
-                    setOpen(true);
-                });
-            } else {
-                setTonTransfer(getJetton(asset, jettons));
+
+            if (transfer.chain === BLOCKCHAIN_NAME.TRON) {
+                setTransferParams(makeTronTransferInitData(transfer));
                 setOpen(true);
+                track('send_open', { from: transfer.from });
+                return;
             }
+
+            getAccountAsync({ address: wallet.rawAddress }).then(fromAccount => {
+                if (transfer.address && seeIfValidTonAddress(transfer.address)) {
+                    getAccountAsync({ address: transfer.address }).then(toAccount => {
+                        setTransferParams(
+                            makeTonTransferInitData(transfer, fromAccount, toAccount, jettons)
+                        );
+                        setOpen(true);
+                    });
+                } else {
+                    setTransferParams({
+                        initAmountState: makeTransferInitAmountState(transfer, fromAccount, jettons)
+                    });
+                    setOpen(true);
+                }
+            });
+
+            track('send_open', { from: transfer.from });
         };
 
         sdk.uiEvents.on('transfer', handler);
         return () => {
             sdk.uiEvents.off('transfer', handler);
         };
-    }, [jettons]);
+    }, [jettons, track]);
 
     const onClose = useCallback(() => {
-        setTonTransfer(undefined);
+        setTransferParams(undefined);
         setOpen(false);
     }, []);
 
     const Content = useCallback(() => {
-        if (!open) return undefined;
         return (
             <SendContent
                 onClose={onClose}
                 chain={chain}
-                initAmountState={tonTransfer?.initAmountState}
-                initRecipient={tonTransfer?.initRecipient}
+                initAmountState={transferParams?.initAmountState}
+                initRecipient={transferParams?.initRecipient}
             />
         );
-    }, [open, tonTransfer, chain]);
+    }, [open, transferParams, chain]);
 
     return (
-        <Notification isOpen={open} handleClose={onClose} hideButton backShadow footer={<></>}>
+        <NotificationStyled
+            isOpen={open}
+            handleClose={onClose}
+            hideButton
+            backShadow
+            footer={<></>}
+            mobileFullScreen
+        >
             {Content}
-        </Notification>
+        </NotificationStyled>
     );
 };
 

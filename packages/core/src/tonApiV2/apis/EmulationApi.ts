@@ -16,52 +16,52 @@
 import * as runtime from '../runtime';
 import type {
   AccountEvent,
-  DecodeMessageRequest,
   DecodedMessage,
   EmulateMessageToWalletRequest,
   Event,
+  GaslessEstimateRequestMessagesInner,
+  InlineObject,
   MessageConsequences,
-  StatusDefaultResponse,
   Trace,
 } from '../models/index';
 import {
     AccountEventFromJSON,
     AccountEventToJSON,
-    DecodeMessageRequestFromJSON,
-    DecodeMessageRequestToJSON,
     DecodedMessageFromJSON,
     DecodedMessageToJSON,
     EmulateMessageToWalletRequestFromJSON,
     EmulateMessageToWalletRequestToJSON,
     EventFromJSON,
     EventToJSON,
+    GaslessEstimateRequestMessagesInnerFromJSON,
+    GaslessEstimateRequestMessagesInnerToJSON,
+    InlineObjectFromJSON,
+    InlineObjectToJSON,
     MessageConsequencesFromJSON,
     MessageConsequencesToJSON,
-    StatusDefaultResponseFromJSON,
-    StatusDefaultResponseToJSON,
     TraceFromJSON,
     TraceToJSON,
 } from '../models/index';
 
-export interface DecodeMessageOperationRequest {
-    decodeMessageRequest: DecodeMessageRequest;
+export interface DecodeMessageRequest {
+    gaslessEstimateRequestMessagesInner: GaslessEstimateRequestMessagesInner;
 }
 
 export interface EmulateMessageToAccountEventRequest {
     accountId: string;
-    decodeMessageRequest: DecodeMessageRequest;
+    gaslessEstimateRequestMessagesInner: GaslessEstimateRequestMessagesInner;
     acceptLanguage?: string;
     ignoreSignatureCheck?: boolean;
 }
 
 export interface EmulateMessageToEventRequest {
-    decodeMessageRequest: DecodeMessageRequest;
+    gaslessEstimateRequestMessagesInner: GaslessEstimateRequestMessagesInner;
     acceptLanguage?: string;
     ignoreSignatureCheck?: boolean;
 }
 
 export interface EmulateMessageToTraceRequest {
-    decodeMessageRequest: DecodeMessageRequest;
+    gaslessEstimateRequestMessagesInner: GaslessEstimateRequestMessagesInner;
     ignoreSignatureCheck?: boolean;
 }
 
@@ -79,22 +79,22 @@ export interface EmulateMessageToWalletOperationRequest {
 export interface EmulationApiInterface {
     /**
      * Decode a given message. Only external incoming messages can be decoded currently.
-     * @param {DecodeMessageRequest} decodeMessageRequest bag-of-cells serialized to hex
+     * @param {GaslessEstimateRequestMessagesInner} gaslessEstimateRequestMessagesInner bag-of-cells serialized to hex
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof EmulationApiInterface
      */
-    decodeMessageRaw(requestParameters: DecodeMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DecodedMessage>>;
+    decodeMessageRaw(requestParameters: DecodeMessageRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DecodedMessage>>;
 
     /**
      * Decode a given message. Only external incoming messages can be decoded currently.
      */
-    decodeMessage(requestParameters: DecodeMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DecodedMessage>;
+    decodeMessage(requestParameters: DecodeMessageRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DecodedMessage>;
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve account-specific events
      * @param {string} accountId account ID
-     * @param {DecodeMessageRequest} decodeMessageRequest bag-of-cells serialized to hex
+     * @param {GaslessEstimateRequestMessagesInner} gaslessEstimateRequestMessagesInner bag-of-cells serialized to hex
      * @param {string} [acceptLanguage] 
      * @param {boolean} [ignoreSignatureCheck] 
      * @param {*} [options] Override http request option.
@@ -104,13 +104,13 @@ export interface EmulationApiInterface {
     emulateMessageToAccountEventRaw(requestParameters: EmulateMessageToAccountEventRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<AccountEvent>>;
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve account-specific events
      */
     emulateMessageToAccountEvent(requestParameters: EmulateMessageToAccountEventRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AccountEvent>;
 
     /**
-     * Emulate sending message to blockchain
-     * @param {DecodeMessageRequest} decodeMessageRequest bag-of-cells serialized to hex
+     * Emulate sending message to retrieve general blockchain events
+     * @param {GaslessEstimateRequestMessagesInner} gaslessEstimateRequestMessagesInner bag-of-cells serialized to hex
      * @param {string} [acceptLanguage] 
      * @param {boolean} [ignoreSignatureCheck] 
      * @param {*} [options] Override http request option.
@@ -120,13 +120,13 @@ export interface EmulationApiInterface {
     emulateMessageToEventRaw(requestParameters: EmulateMessageToEventRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Event>>;
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve general blockchain events
      */
     emulateMessageToEvent(requestParameters: EmulateMessageToEventRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Event>;
 
     /**
-     * Emulate sending message to blockchain
-     * @param {DecodeMessageRequest} decodeMessageRequest bag-of-cells serialized to hex
+     * Emulate sending message to retrieve with a detailed execution trace
+     * @param {GaslessEstimateRequestMessagesInner} gaslessEstimateRequestMessagesInner bag-of-cells serialized to hex
      * @param {boolean} [ignoreSignatureCheck] 
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -135,12 +135,12 @@ export interface EmulationApiInterface {
     emulateMessageToTraceRaw(requestParameters: EmulateMessageToTraceRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Trace>>;
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve with a detailed execution trace
      */
     emulateMessageToTrace(requestParameters: EmulateMessageToTraceRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Trace>;
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve the resulting wallet state
      * @param {EmulateMessageToWalletRequest} emulateMessageToWalletRequest bag-of-cells serialized to base64/hex and additional parameters to configure emulation
      * @param {string} [acceptLanguage] 
      * @param {*} [options] Override http request option.
@@ -150,7 +150,7 @@ export interface EmulationApiInterface {
     emulateMessageToWalletRaw(requestParameters: EmulateMessageToWalletOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<MessageConsequences>>;
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve the resulting wallet state
      */
     emulateMessageToWallet(requestParameters: EmulateMessageToWalletOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<MessageConsequences>;
 
@@ -164,11 +164,11 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
     /**
      * Decode a given message. Only external incoming messages can be decoded currently.
      */
-    async decodeMessageRaw(requestParameters: DecodeMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DecodedMessage>> {
-        if (requestParameters['decodeMessageRequest'] == null) {
+    async decodeMessageRaw(requestParameters: DecodeMessageRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DecodedMessage>> {
+        if (requestParameters['gaslessEstimateRequestMessagesInner'] == null) {
             throw new runtime.RequiredError(
-                'decodeMessageRequest',
-                'Required parameter "decodeMessageRequest" was null or undefined when calling decodeMessage().'
+                'gaslessEstimateRequestMessagesInner',
+                'Required parameter "gaslessEstimateRequestMessagesInner" was null or undefined when calling decodeMessage().'
             );
         }
 
@@ -183,7 +183,7 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
             method: 'POST',
             headers: headerParameters,
             query: queryParameters,
-            body: DecodeMessageRequestToJSON(requestParameters['decodeMessageRequest']),
+            body: GaslessEstimateRequestMessagesInnerToJSON(requestParameters['gaslessEstimateRequestMessagesInner']),
         }, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => DecodedMessageFromJSON(jsonValue));
@@ -192,13 +192,13 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
     /**
      * Decode a given message. Only external incoming messages can be decoded currently.
      */
-    async decodeMessage(requestParameters: DecodeMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DecodedMessage> {
+    async decodeMessage(requestParameters: DecodeMessageRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DecodedMessage> {
         const response = await this.decodeMessageRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve account-specific events
      */
     async emulateMessageToAccountEventRaw(requestParameters: EmulateMessageToAccountEventRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<AccountEvent>> {
         if (requestParameters['accountId'] == null) {
@@ -208,10 +208,10 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
             );
         }
 
-        if (requestParameters['decodeMessageRequest'] == null) {
+        if (requestParameters['gaslessEstimateRequestMessagesInner'] == null) {
             throw new runtime.RequiredError(
-                'decodeMessageRequest',
-                'Required parameter "decodeMessageRequest" was null or undefined when calling emulateMessageToAccountEvent().'
+                'gaslessEstimateRequestMessagesInner',
+                'Required parameter "gaslessEstimateRequestMessagesInner" was null or undefined when calling emulateMessageToAccountEvent().'
             );
         }
 
@@ -234,14 +234,14 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
             method: 'POST',
             headers: headerParameters,
             query: queryParameters,
-            body: DecodeMessageRequestToJSON(requestParameters['decodeMessageRequest']),
+            body: GaslessEstimateRequestMessagesInnerToJSON(requestParameters['gaslessEstimateRequestMessagesInner']),
         }, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => AccountEventFromJSON(jsonValue));
     }
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve account-specific events
      */
     async emulateMessageToAccountEvent(requestParameters: EmulateMessageToAccountEventRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AccountEvent> {
         const response = await this.emulateMessageToAccountEventRaw(requestParameters, initOverrides);
@@ -249,13 +249,13 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
     }
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve general blockchain events
      */
     async emulateMessageToEventRaw(requestParameters: EmulateMessageToEventRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Event>> {
-        if (requestParameters['decodeMessageRequest'] == null) {
+        if (requestParameters['gaslessEstimateRequestMessagesInner'] == null) {
             throw new runtime.RequiredError(
-                'decodeMessageRequest',
-                'Required parameter "decodeMessageRequest" was null or undefined when calling emulateMessageToEvent().'
+                'gaslessEstimateRequestMessagesInner',
+                'Required parameter "gaslessEstimateRequestMessagesInner" was null or undefined when calling emulateMessageToEvent().'
             );
         }
 
@@ -278,14 +278,14 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
             method: 'POST',
             headers: headerParameters,
             query: queryParameters,
-            body: DecodeMessageRequestToJSON(requestParameters['decodeMessageRequest']),
+            body: GaslessEstimateRequestMessagesInnerToJSON(requestParameters['gaslessEstimateRequestMessagesInner']),
         }, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => EventFromJSON(jsonValue));
     }
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve general blockchain events
      */
     async emulateMessageToEvent(requestParameters: EmulateMessageToEventRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Event> {
         const response = await this.emulateMessageToEventRaw(requestParameters, initOverrides);
@@ -293,13 +293,13 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
     }
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve with a detailed execution trace
      */
     async emulateMessageToTraceRaw(requestParameters: EmulateMessageToTraceRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Trace>> {
-        if (requestParameters['decodeMessageRequest'] == null) {
+        if (requestParameters['gaslessEstimateRequestMessagesInner'] == null) {
             throw new runtime.RequiredError(
-                'decodeMessageRequest',
-                'Required parameter "decodeMessageRequest" was null or undefined when calling emulateMessageToTrace().'
+                'gaslessEstimateRequestMessagesInner',
+                'Required parameter "gaslessEstimateRequestMessagesInner" was null or undefined when calling emulateMessageToTrace().'
             );
         }
 
@@ -318,14 +318,14 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
             method: 'POST',
             headers: headerParameters,
             query: queryParameters,
-            body: DecodeMessageRequestToJSON(requestParameters['decodeMessageRequest']),
+            body: GaslessEstimateRequestMessagesInnerToJSON(requestParameters['gaslessEstimateRequestMessagesInner']),
         }, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => TraceFromJSON(jsonValue));
     }
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve with a detailed execution trace
      */
     async emulateMessageToTrace(requestParameters: EmulateMessageToTraceRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Trace> {
         const response = await this.emulateMessageToTraceRaw(requestParameters, initOverrides);
@@ -333,7 +333,7 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
     }
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve the resulting wallet state
      */
     async emulateMessageToWalletRaw(requestParameters: EmulateMessageToWalletOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<MessageConsequences>> {
         if (requestParameters['emulateMessageToWalletRequest'] == null) {
@@ -365,7 +365,7 @@ export class EmulationApi extends runtime.BaseAPI implements EmulationApiInterfa
     }
 
     /**
-     * Emulate sending message to blockchain
+     * Emulate sending message to retrieve the resulting wallet state
      */
     async emulateMessageToWallet(requestParameters: EmulateMessageToWalletOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<MessageConsequences> {
         const response = await this.emulateMessageToWalletRaw(requestParameters, initOverrides);

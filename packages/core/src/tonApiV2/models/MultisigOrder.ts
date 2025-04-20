@@ -13,6 +13,14 @@
  */
 
 import { mapValues } from '../runtime';
+import type { Risk } from './Risk';
+import {
+    RiskFromJSON,
+    RiskFromJSONTyped,
+    RiskToJSON,
+    RiskToJSONTyped,
+} from './Risk';
+
 /**
  * 
  * @export
@@ -61,6 +69,24 @@ export interface MultisigOrder {
      * @memberof MultisigOrder
      */
     expirationDate: number;
+    /**
+     * 
+     * @type {Risk}
+     * @memberof MultisigOrder
+     */
+    risk: Risk;
+    /**
+     * 
+     * @type {number}
+     * @memberof MultisigOrder
+     */
+    creationDate: number;
+    /**
+     * 
+     * @type {Array<string>}
+     * @memberof MultisigOrder
+     */
+    signedBy: Array<string>;
 }
 
 /**
@@ -74,6 +100,9 @@ export function instanceOfMultisigOrder(value: object): value is MultisigOrder {
     if (!('signers' in value) || value['signers'] === undefined) return false;
     if (!('approvalsNum' in value) || value['approvalsNum'] === undefined) return false;
     if (!('expirationDate' in value) || value['expirationDate'] === undefined) return false;
+    if (!('risk' in value) || value['risk'] === undefined) return false;
+    if (!('creationDate' in value) || value['creationDate'] === undefined) return false;
+    if (!('signedBy' in value) || value['signedBy'] === undefined) return false;
     return true;
 }
 
@@ -94,13 +123,21 @@ export function MultisigOrderFromJSONTyped(json: any, ignoreDiscriminator: boole
         'signers': json['signers'],
         'approvalsNum': json['approvals_num'],
         'expirationDate': json['expiration_date'],
+        'risk': RiskFromJSON(json['risk']),
+        'creationDate': json['creation_date'],
+        'signedBy': json['signed_by'],
     };
 }
 
-export function MultisigOrderToJSON(value?: MultisigOrder | null): any {
+export function MultisigOrderToJSON(json: any): MultisigOrder {
+    return MultisigOrderToJSONTyped(json, false);
+}
+
+export function MultisigOrderToJSONTyped(value?: MultisigOrder | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
+
     return {
         
         'address': value['address'],
@@ -110,6 +147,9 @@ export function MultisigOrderToJSON(value?: MultisigOrder | null): any {
         'signers': value['signers'],
         'approvals_num': value['approvalsNum'],
         'expiration_date': value['expirationDate'],
+        'risk': RiskToJSON(value['risk']),
+        'creation_date': value['creationDate'],
+        'signed_by': value['signedBy'],
     };
 }
 

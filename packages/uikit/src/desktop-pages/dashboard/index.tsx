@@ -1,25 +1,23 @@
+import { isFreeSubscription, isPaidSubscription } from '@tonkeeper/core/dist/entries/pro';
+import { FC } from 'react';
+import styled, { css } from 'styled-components';
 import { DashboardTable } from '../../components/dashboard/DashboardTable';
-import { FC, useState } from 'react';
-import styled from 'styled-components';
-import { CategoriesModal } from '../../components/dashboard/CategoriesModal';
-import { Button } from '../../components/fields/Button';
+import {
+    DPDashboardHeader,
+    MPDashboardHeader
+} from '../../components/desktop/header/DashboardHeader';
+import { desktopHeaderContainerHeight } from '../../components/desktop/header/DesktopHeaderElements';
 import { ProBanner } from '../../components/pro/ProBanner';
-import { useTranslation } from '../../hooks/translation';
 import { useProState } from '../../state/pro';
-import { isPaidSubscription } from '@tonkeeper/core/dist/entries/pro';
+import { HideOnReview } from '../../components/ios/HideOnReview';
+import { DesktopViewPageLayout } from '../../components/desktop/DesktopViewLayout';
+import { ForTargetEnv, NotForTargetEnv } from '../../components/shared/TargetEnv';
+import { MPCarouselScroll } from '../../components/shared/MPCarouselScroll';
+import { useAppTargetEnv } from '../../hooks/appSdk';
+import { Navigate } from '../../components/shared/Navigate';
+import { AppRoute } from '../../libs/routes';
 
 const DashboardTableStyled = styled(DashboardTable)``;
-
-const ButtonContainerStyled = styled.div`
-    padding: 1rem 1rem 2rem;
-    flex: 1;
-    position: sticky;
-    left: 0;
-
-    > button {
-        margin-left: auto;
-    }
-`;
 
 const ProBannerWrapper = styled.div`
     padding: 1rem;
@@ -29,37 +27,57 @@ const ProBannerWrapper = styled.div`
     background: ${p => p.theme.gradientBackgroundBottom};
 `;
 
-const PageWrapper = styled.div`
+const PageWrapper = styled(DesktopViewPageLayout)`
     overflow: auto;
     position: relative;
-    height: 100%;
+    height: calc(100% - ${desktopHeaderContainerHeight});
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
+
+    &::after {
+        display: none;
+    }
+
+    ${p =>
+        p.theme.proDisplayType === 'mobile' &&
+        css`
+            height: calc(100% - env(safe-area-inset-top));
+        `}
 `;
 
 const DashboardPage: FC = () => {
-    const { t } = useTranslation();
-    const [isOpen, setIsOpen] = useState(false);
-
     const { data } = useProState();
-    const shouldShowProBanner = data && !isPaidSubscription(data.subscription);
+    const shouldShowProBanner =
+        data && !isPaidSubscription(data.subscription) && !isFreeSubscription(data.subscription);
+
+    const env = useAppTargetEnv();
+    if (env === 'mobile') {
+        return <Navigate to={AppRoute.home} />;
+    }
 
     return (
-        <PageWrapper>
-            <DashboardTableStyled />
-            <ButtonContainerStyled>
-                <Button size="small" corner="2xSmall" onClick={() => setIsOpen(true)}>
-                    {t('Manage')}
-                </Button>
-            </ButtonContainerStyled>
-            {shouldShowProBanner && (
-                <ProBannerWrapper>
-                    <ProBanner />
-                </ProBannerWrapper>
-            )}
-            <CategoriesModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
-        </PageWrapper>
+        <>
+            <NotForTargetEnv env="mobile">
+                <DPDashboardHeader />
+            </NotForTargetEnv>
+            <PageWrapper>
+                <ForTargetEnv env="mobile">
+                    <MPDashboardHeader />
+                </ForTargetEnv>
+                <MPCarouselScroll>
+                    <DashboardTableStyled />
+                </MPCarouselScroll>
+                <HideOnReview>
+                    {shouldShowProBanner && (
+                        <ProBannerWrapper>
+                            <ProBanner />
+                        </ProBannerWrapper>
+                    )}
+                </HideOnReview>
+            </PageWrapper>
+        </>
     );
 };
 

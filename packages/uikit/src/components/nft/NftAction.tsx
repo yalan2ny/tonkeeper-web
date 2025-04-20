@@ -5,11 +5,12 @@ import { FC } from 'react';
 import styled from 'styled-components';
 import { useAppSdk } from '../../hooks/appSdk';
 import { useTranslation } from '../../hooks/translation';
+import { useActiveWallet, useIsActiveWalletWatchOnly } from '../../state/wallet';
 import { Body2 } from '../Text';
 import { Button } from '../fields/Button';
 import { LinkNft } from './LinkNft';
 import { RenewNft } from './RenewNft';
-import { useActiveWallet } from '../../state/wallet';
+import { HideOnReview } from '../ios/HideOnReview';
 
 const getMarketplaceUrl = (nftItem: NftItem) => {
     const { marketplace } = nftItem.metadata;
@@ -29,18 +30,20 @@ const ViewOnMarketButton: FC<{ url: string }> = ({ url }) => {
     const sdk = useAppSdk();
 
     return (
-        <Button
-            size="large"
-            secondary
-            fullWidth
-            onClick={e => {
-                e.preventDefault();
-                e.stopPropagation();
-                sdk.openPage(url);
-            }}
-        >
-            {t('nft_open_in_marketplace')}
-        </Button>
+        <HideOnReview>
+            <Button
+                size="large"
+                secondary
+                fullWidth
+                onClick={e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    sdk.openPage(url);
+                }}
+            >
+                {t('nft_open_in_marketplace')}
+            </Button>
+        </HideOnReview>
     );
 };
 const ActionTransfer: FC<{
@@ -89,6 +92,15 @@ export const NftAction: FC<{
     kind: NFTKind;
     nftItem: NFT;
 }> = ({ kind, nftItem }) => {
+    const isReadOnly = useIsActiveWalletWatchOnly();
+    if (isReadOnly) {
+        return (
+            <>
+                <ViewOnMarketButton url={getMarketplaceUrl(nftItem)} />
+            </>
+        );
+    }
+
     switch (kind) {
         case 'token': {
             return (

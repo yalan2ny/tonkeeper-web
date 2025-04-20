@@ -10,9 +10,9 @@ export const proTheme: DefaultTheme = {
     backgroundPage: '#000000',
     backgroundTransparent: 'rgb(0 0 0 / 96%)',
     backgroundContent: '#17171A',
-    backgroundContentTint: '#222224',
+    backgroundContentTint: '#272729',
     backgroundContentAttention: '#2F2F33',
-    backgroundOverlayStrong: 'rgba(20, 20, 20, 0.72)',
+    backgroundOverlayStrong: 'rgba(31, 31, 31, 0.72)',
     backgroundOverlayLight: 'rgba(20, 20, 20, 0.48)',
     backgroundOverlayExtraLight: 'rgba(20, 20, 20, 0.24)',
     backgroundHighlighted: 'rgb(255 255 255 / 4%)',
@@ -51,6 +51,7 @@ export const proTheme: DefaultTheme = {
     fieldErrorBackground: 'rgb(255 71 102 / 8%)',
 
     accentBlue: '#FFDB29',
+    accentBlueConstant: '#45AEF5',
     accentGreen: '#39CC83',
     accentRed: '#FF4766',
     accentOrange: '#F5A73B',
@@ -89,5 +90,6 @@ export const proTheme: DefaultTheme = {
     cornerFull: '100%',
     fontMono: 'ui-monospace, SF Mono, monospace, Roboto Mono, Menlo, Consolas, Courier',
     displayType: 'compact',
+    proDisplayType: undefined,
     os: undefined
 };

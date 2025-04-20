@@ -18,9 +18,10 @@
  * @export
  */
 export const ComputeSkipReason = {
-    NoState: 'cskip_no_state',
-    BadState: 'cskip_bad_state',
-    NoGas: 'cskip_no_gas'
+    CskipNoState: 'cskip_no_state',
+    CskipBadState: 'cskip_bad_state',
+    CskipNoGas: 'cskip_no_gas',
+    CskipSuspended: 'cskip_suspended'
 } as const;
 export type ComputeSkipReason = typeof ComputeSkipReason[keyof typeof ComputeSkipReason];
 
@@ -46,5 +47,9 @@ export function ComputeSkipReasonFromJSONTyped(json: any, ignoreDiscriminator: b
 
 export function ComputeSkipReasonToJSON(value?: ComputeSkipReason | null): any {
     return value as any;
+}
+
+export function ComputeSkipReasonToJSONTyped(value: any, ignoreDiscriminator: boolean): ComputeSkipReason {
+    return value as ComputeSkipReason;
 }
 

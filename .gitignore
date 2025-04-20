@@ -39,7 +39,8 @@ testem.log
 Thumbs.db
 
 .turbo
-.yarn
+.yarn/cache
+.yarn/install-state.gz
 .history
 
 .env
@@ -50,3 +51,6 @@ Thumbs.db
 
 **/public/locales/*
 **/src/wallet-translation/*
+
+
+package-lock.json

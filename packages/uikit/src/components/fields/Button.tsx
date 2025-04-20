@@ -1,4 +1,4 @@
-import React, { FC, PropsWithChildren } from 'react';
+import React, { ComponentProps, FC, PropsWithChildren } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 import { SpinnerIcon } from '../Icon';
 import { Body2Class } from '../Text';
@@ -262,4 +262,10 @@ export const Button: FC<
             </ButtonElement>
         );
     }
+};
+
+export const ButtonResponsiveSize: FC<Omit<ComponentProps<typeof Button>, 'size'>> = props => {
+    const theme = useTheme();
+
+    return <Button {...props} size={theme.proDisplayType === 'desktop' ? 'small' : 'large'} />;
 };

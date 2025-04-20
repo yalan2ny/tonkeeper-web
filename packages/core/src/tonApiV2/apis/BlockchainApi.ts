@@ -21,12 +21,11 @@ import type {
   BlockchainBlocks,
   BlockchainConfig,
   BlockchainRawAccount,
+  InlineObject,
   MethodExecutionResult,
   RawBlockchainConfig,
   ReducedBlocks,
   SendBlockchainMessageRequest,
-  ServiceStatus,
-  StatusDefaultResponse,
   Transaction,
   Transactions,
   Validators,
@@ -44,6 +43,8 @@ import {
     BlockchainConfigToJSON,
     BlockchainRawAccountFromJSON,
     BlockchainRawAccountToJSON,
+    InlineObjectFromJSON,
+    InlineObjectToJSON,
     MethodExecutionResultFromJSON,
     MethodExecutionResultToJSON,
     RawBlockchainConfigFromJSON,
@@ -52,10 +53,6 @@ import {
     ReducedBlocksToJSON,
     SendBlockchainMessageRequestFromJSON,
     SendBlockchainMessageRequestToJSON,
-    ServiceStatusFromJSON,
-    ServiceStatusToJSON,
-    StatusDefaultResponseFromJSON,
-    StatusDefaultResponseToJSON,
     TransactionFromJSON,
     TransactionToJSON,
     TransactionsFromJSON,
@@ -406,19 +403,6 @@ export interface BlockchainApiInterface {
      * Send message to blockchain
      */
     sendBlockchainMessage(requestParameters: SendBlockchainMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
-
-    /**
-     * Status
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof BlockchainApiInterface
-     */
-    statusRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ServiceStatus>>;
-
-    /**
-     * Status
-     */
-    status(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ServiceStatus>;
 
 }
 
@@ -1068,32 +1052,6 @@ export class BlockchainApi extends runtime.BaseAPI implements BlockchainApiInter
      */
     async sendBlockchainMessage(requestParameters: SendBlockchainMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
         await this.sendBlockchainMessageRaw(requestParameters, initOverrides);
-    }
-
-    /**
-     * Status
-     */
-    async statusRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ServiceStatus>> {
-        const queryParameters: any = {};
-
-        const headerParameters: runtime.HTTPHeaders = {};
-
-        const response = await this.request({
-            path: `/v2/status`,
-            method: 'GET',
-            headers: headerParameters,
-            query: queryParameters,
-        }, initOverrides);
-
-        return new runtime.JSONApiResponse(response, (jsonValue) => ServiceStatusFromJSON(jsonValue));
-    }
-
-    /**
-     * Status
-     */
-    async status(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ServiceStatus> {
-        const response = await this.statusRaw(initOverrides);
-        return await response.value();
     }
 
 }

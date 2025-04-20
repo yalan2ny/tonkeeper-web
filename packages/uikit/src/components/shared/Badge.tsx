@@ -1,15 +1,18 @@
 import { FC, PropsWithChildren } from 'react';
 import styled, { css } from 'styled-components';
 import { hexToRGBA } from '../../libs/css';
+import { Label3Class } from '../Text';
 
 const BadgeStyled = styled.div<{
     color: string;
     display: string;
     size: 'm' | 's';
     background?: string;
+    $marginLeft?: string;
 }>`
     display: ${p => p.display};
     flex-shrink: 0;
+    height: fit-content;
 
     ${p =>
         p.size === 'm'
@@ -35,6 +38,12 @@ const BadgeStyled = styled.div<{
     text-transform: uppercase;
 
     font-style: normal;
+
+    ${p =>
+        p.$marginLeft &&
+        css`
+            margin-left: ${p.$marginLeft};
+        `}
 `;
 
 export const Badge: FC<
@@ -44,16 +53,34 @@ export const Badge: FC<
         display?: string;
         size?: 'm' | 's';
         background?: string;
+        marginLeft?: string;
     }>
-> = ({ color, className, children, display = 'block', size = 'm' }) => {
+> = ({ color, className, children, display = 'block', size = 'm', marginLeft, background }) => {
     return (
         <BadgeStyled
             className={className}
             color={color || 'accentBlue'}
             display={display}
             size={size}
+            $marginLeft={marginLeft}
+            background={background}
         >
             {children}
         </BadgeStyled>
     );
 };
+
+export const RoundedBadge = styled.div`
+    background-color: ${p => p.theme.accentRed};
+    color: ${p => p.theme.textPrimary};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: ${p => p.theme.cornerFull};
+    padding: 0 4px;
+    aspect-ratio: 1 / 1;
+    box-sizing: border-box;
+    min-width: 16px;
+
+    ${Label3Class};
+`;

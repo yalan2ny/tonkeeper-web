@@ -11,6 +11,7 @@ const EmojiWrapper = styled.div<{ emojiSize?: string; containerSize?: string }>`
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: visible !important;
 
     > svg {
         height: ${p => p.emojiSize || '24px'};
@@ -23,7 +24,8 @@ export const WalletEmoji: FC<{
     emojiSize?: string;
     containerSize?: string;
     className?: string;
-}> = ({ emoji, className, emojiSize, containerSize }) => {
+    onClick?: () => void;
+}> = ({ emoji, className, emojiSize, containerSize, onClick }) => {
     if (emoji?.startsWith('custom:')) {
         const Emoji = emojiIcons.find(icon => icon.name === emoji);
 
@@ -32,14 +34,24 @@ export const WalletEmoji: FC<{
         }
 
         return (
-            <EmojiWrapper emojiSize={emojiSize} containerSize={containerSize} className={className}>
+            <EmojiWrapper
+                emojiSize={emojiSize}
+                containerSize={containerSize}
+                className={className}
+                onClick={onClick}
+            >
                 <Emoji.icon />
             </EmojiWrapper>
         );
     }
 
     return (
-        <EmojiWrapper emojiSize={emojiSize} containerSize={containerSize} className={className}>
+        <EmojiWrapper
+            emojiSize={emojiSize}
+            containerSize={containerSize}
+            className={className}
+            onClick={onClick}
+        >
             {emoji}
         </EmojiWrapper>
     );

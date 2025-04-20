@@ -1,17 +1,7 @@
-import { useAppContext } from '../hooks/appContext';
-import { useAppSdk } from '../hooks/appSdk';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { getActiveWalletConfig } from '@tonkeeper/core/dist/service/wallet/configService';
-import {
-    useActiveWallet,
-    useActiveTonWalletConfig,
-    useMutateActiveTonWalletConfig,
-    useActiveTonNetwork
-} from './wallet';
 import { NFT } from '@tonkeeper/core/dist/entries/nft';
-import { DefaultRefetchInterval, useTonenpointConfig } from './tonendpoint';
 import { TonWalletConfig } from '@tonkeeper/core/dist/entries/wallet';
-import { useTranslation } from '../hooks/translation';
+import { getActiveWalletConfig } from '@tonkeeper/core/dist/service/wallet/configService';
 import {
     AccountsApi,
     BlockchainApi,
@@ -21,9 +11,20 @@ import {
     NftCollection,
     NftItem
 } from '@tonkeeper/core/dist/tonApiV2';
-import { QueryKey } from '../libs/queryKey';
 import { isTONDNSDomain } from '@tonkeeper/core/dist/utils/nft';
 import { useMemo } from 'react';
+import { useAppContext } from '../hooks/appContext';
+import { useAppSdk } from '../hooks/appSdk';
+import { useTranslation } from '../hooks/translation';
+import { QueryKey } from '../libs/queryKey';
+import { useTonenpointConfig } from './tonendpoint';
+import {
+    useActiveApi,
+    useActiveTonNetwork,
+    useActiveTonWalletConfig,
+    useActiveWallet,
+    useMutateActiveTonWalletConfig
+} from './wallet';
 
 type NftWithCollectionId = Pick<NFT, 'address'> & {
     collection?: Pick<Required<NFT>['collection'], 'address'>;
@@ -34,13 +35,14 @@ export const useMarkNftAsSpam = () => {
     const sdk = useAppSdk();
     const { mutateAsync } = useMutateActiveTonWalletConfig();
     const { tonendpoint } = useAppContext();
-    const { data: tonendpointConfig } = useTonenpointConfig(tonendpoint);
+    const { data: serverConfig } = useTonenpointConfig(tonendpoint);
     const { t } = useTranslation();
     const network = useActiveTonNetwork();
     return useMutation<void, Error, NftWithCollectionId>(async nft => {
-        let config = await getActiveWalletConfig(sdk.storage, wallet.rawAddress, network);
+        let config = await getActiveWalletConfig(sdk, wallet.rawAddress, network);
 
         const address = nft.collection?.address || nft.address;
+        const tonendpointConfig = serverConfig?.mainnetConfig;
 
         if (!config.spamNfts.includes(address) && tonendpointConfig?.scam_api_url) {
             let baseUrl = tonendpointConfig?.scam_api_url;
@@ -77,7 +79,7 @@ export const useMarkNftAsTrusted = () => {
     const { mutateAsync } = useMutateActiveTonWalletConfig();
     const network = useActiveTonNetwork();
     return useMutation<void, Error, NftWithCollectionId | string>(async nft => {
-        let config = await getActiveWalletConfig(sdk.storage, wallet.rawAddress, network);
+        let config = await getActiveWalletConfig(sdk, wallet.rawAddress, network);
 
         const address = typeof nft === 'string' ? nft : nft.collection?.address || nft.address;
 
@@ -98,7 +100,7 @@ export const useHideNft = () => {
     const { t } = useTranslation();
     const network = useActiveTonNetwork();
     return useMutation<void, Error, NftWithCollectionId>(async nft => {
-        let config = await getActiveWalletConfig(sdk.storage, wallet.rawAddress, network);
+        let config = await getActiveWalletConfig(sdk, wallet.rawAddress, network);
 
         const address = nft.collection?.address || nft.address;
 
@@ -126,7 +128,7 @@ export const useMakeNftVisible = () => {
     const { mutateAsync } = useMutateActiveTonWalletConfig();
     const network = useActiveTonNetwork();
     return useMutation<void, Error, NftWithCollectionId | string>(async nft => {
-        let config = await getActiveWalletConfig(sdk.storage, wallet.rawAddress, network);
+        let config = await getActiveWalletConfig(sdk, wallet.rawAddress, network);
 
         const address = typeof nft === 'string' ? nft : nft.collection?.address || nft.address;
 
@@ -155,12 +157,19 @@ export const isSpamNft = (
     nft: (NftWithCollectionId & { trust: NFT['trust'] }) | undefined,
     config: TonWalletConfig | undefined
 ) => {
-    return Boolean(
-        nft &&
-            (!!config?.spamNfts.includes(nft.collection?.address || nft.address) ||
-                (nft.trust === 'blacklist' &&
-                    !config?.trustedNfts.includes(nft.collection?.address || nft.address)))
-    );
+    if (!nft) {
+        return true;
+    }
+    const address = nft.collection?.address || nft.address;
+    if (config?.spamNfts.includes(address)) {
+        return true;
+    }
+
+    if (config?.trustedNfts.includes(address)) {
+        return false;
+    }
+
+    return ['blacklist', 'graylist'].includes(nft.trust);
 };
 
 export const isUnverifiedNft = (
@@ -175,28 +184,17 @@ export const isUnverifiedNft = (
 };
 export const useWalletNftList = () => {
     const wallet = useActiveWallet();
-    const {
-        api: { tonApiV2 }
-    } = useAppContext();
+    const { tonApiV2 } = useActiveApi();
 
-    return useQuery<NFT[], Error>(
-        [wallet.rawAddress, QueryKey.nft],
-        async () => {
-            const { nftItems } = await new AccountsApi(tonApiV2).getAccountNftItems({
-                accountId: wallet.rawAddress,
-                offset: 0,
-                limit: 1000,
-                indirectOwnership: true
-            });
-            return nftItems;
-        },
-        {
-            refetchInterval: DefaultRefetchInterval,
-            refetchIntervalInBackground: true,
-            refetchOnWindowFocus: true,
-            keepPreviousData: true
-        }
-    );
+    return useQuery<NFT[], Error>([wallet.rawAddress, QueryKey.nft], async () => {
+        const { nftItems } = await new AccountsApi(tonApiV2).getAccountNftItems({
+            accountId: wallet.rawAddress,
+            offset: 0,
+            limit: 1000,
+            indirectOwnership: true
+        });
+        return nftItems;
+    });
 };
 export const useWalletFilteredNftList = () => {
     const { data: nfts, ...rest } = useWalletNftList();
@@ -222,9 +220,7 @@ export const useWalletFilteredNftList = () => {
     };
 };
 export const useNftDNSLinkData = (nft: NFT) => {
-    const {
-        api: { tonApiV2 }
-    } = useAppContext();
+    const api = useActiveApi();
 
     return useQuery<DnsRecord | null, Error>(
         ['dns_link', nft?.address],
@@ -233,7 +229,7 @@ export const useNftDNSLinkData = (nft: NFT) => {
             if (!domainName) return null;
 
             try {
-                return await new DNSApi(tonApiV2).dnsResolve({ domainName });
+                return await new DNSApi(api.tonApiV2).dnsResolve({ domainName });
             } catch (e) {
                 return null;
             }
@@ -243,9 +239,7 @@ export const useNftDNSLinkData = (nft: NFT) => {
 };
 const MINUTES_IN_YEAR = 60 * 60 * 24 * 366;
 export const useNftDNSExpirationDate = (nft: NFT) => {
-    const {
-        api: { tonApiV2 }
-    } = useAppContext();
+    const { tonApiV2 } = useActiveApi();
 
     return useQuery<Date | null, Error>(['dns_expiring', nft.address], async () => {
         if (!nft.owner?.address || !nft.dns || !isTONDNSDomain(nft.dns)) {
@@ -270,9 +264,7 @@ export const useNftDNSExpirationDate = (nft: NFT) => {
     });
 };
 export const useNftCollectionData = (nftOrCollection: NftItem | string) => {
-    const {
-        api: { tonApiV2 }
-    } = useAppContext();
+    const { tonApiV2 } = useActiveApi();
 
     const collectionAddress =
         typeof nftOrCollection === 'string' ? nftOrCollection : nftOrCollection.collection?.address;
@@ -290,9 +282,7 @@ export const useNftCollectionData = (nftOrCollection: NftItem | string) => {
     );
 };
 export const useNftItemData = (address?: string) => {
-    const {
-        api: { tonApiV2 }
-    } = useAppContext();
+    const { tonApiV2 } = useActiveApi();
 
     return useQuery<NftItem, Error>(
         [address, QueryKey.nft],

@@ -1,6 +1,10 @@
 import { FC, PropsWithChildren, useEffect, useMemo } from 'react';
 import { DefaultTheme, ThemeProvider } from 'styled-components';
-import { availableThemes, useMutateUserUIPreferences, useUserUIPreferences } from '../state/theme';
+import {
+    useAvailableThemes,
+    useMutateUserUIPreferences,
+    useUserUIPreferences
+} from '../state/theme';
 import { usePrevious } from '../hooks/usePrevious';
 import { getUserOS } from '../libs/web';
 export const UserThemeProvider: FC<
@@ -8,11 +12,14 @@ export const UserThemeProvider: FC<
         displayType?: 'compact' | 'full-width';
         isPro?: boolean;
         isProSupported?: boolean;
+        isInsideTonkeeper?: boolean;
+        proDisplayType?: 'mobile' | 'desktop';
     }>
-> = ({ children, displayType, isPro, isProSupported }) => {
+> = ({ children, displayType, isPro, isProSupported, isInsideTonkeeper, proDisplayType }) => {
     const { data: uiPreferences, isFetched: isUIPreferencesLoaded } = useUserUIPreferences();
     const { mutateAsync } = useMutateUserUIPreferences();
     const isProPrev = usePrevious(isPro);
+    const availableThemes = useAvailableThemes();
 
     const [currentTheme, currentThemeName] = useMemo(() => {
         let themeName = uiPreferences?.theme;
@@ -31,18 +38,43 @@ export const UserThemeProvider: FC<
 
         themeName = themeName || 'dark';
 
-        const theme = availableThemes[themeName];
+        let theme = availableThemes[themeName];
 
         if (displayType) {
             theme.displayType = displayType;
+        }
+
+        if (displayType === 'full-width' && proDisplayType) {
+            theme.proDisplayType = proDisplayType;
         }
 
         theme.os = getUserOS();
 
         window.document.body.style.background = theme.backgroundPage;
 
+        if (isInsideTonkeeper) {
+            theme = {
+                ...theme,
+                corner3xSmall: '2px',
+                corner2xSmall: '4px',
+                cornerExtraSmall: '6px',
+                cornerSmall: '8px',
+                cornerMedium: '12px',
+                cornerLarge: '16px',
+                cornerFull: '100%'
+            };
+        }
+
         return [theme, themeName];
-    }, [uiPreferences?.theme, displayType, isPro, isProPrev]);
+    }, [
+        uiPreferences?.theme,
+        displayType,
+        isPro,
+        isProPrev,
+        isInsideTonkeeper,
+        proDisplayType,
+        availableThemes
+    ]);
 
     useEffect(() => {
         if (currentTheme && uiPreferences && currentThemeName !== uiPreferences.theme) {

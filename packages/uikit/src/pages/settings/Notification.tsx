@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import styled from 'styled-components';
 import { InnerBody } from '../../components/Body';
-import { ListBlock, ListItem, ListItemPayload } from '../../components/List';
+import { ListBlockDesktopAdaptive, ListItem, ListItemPayload } from '../../components/List';
 import { SubHeader } from '../../components/SubHeader';
 import { Body2, Label1 } from '../../components/Text';
 import { Switch } from '../../components/fields/Switch';
@@ -9,9 +9,20 @@ import { useAppSdk } from '../../hooks/appSdk';
 import { useTranslation } from '../../hooks/translation';
 import { QueryKey } from '../../libs/queryKey';
 import { signTonConnectOver } from '../../state/mnemonic';
-import { useCheckTouchId } from '../../state/password';
-import { useActiveAccount, useActiveTonNetwork, useActiveWallet } from '../../state/wallet';
-import { useAppContext } from '../../hooks/appContext';
+import { useSecurityCheck } from '../../state/password';
+import {
+    useActiveAccount,
+    useActiveApi,
+    useActiveTonNetwork,
+    useActiveWallet
+} from '../../state/wallet';
+import { useIsFullWidthMode } from '../../hooks/useIsFullWidthMode';
+import {
+    DesktopViewHeader,
+    DesktopViewHeaderContent,
+    DesktopViewPageLayout
+} from '../../components/desktop/DesktopViewLayout';
+import React from 'react';
 
 const useSubscribed = () => {
     const sdk = useAppSdk();
@@ -32,8 +43,8 @@ const useToggleSubscribe = () => {
     const sdk = useAppSdk();
     const account = useActiveAccount();
     const client = useQueryClient();
-    const { mutateAsync: checkTouchId } = useCheckTouchId();
-    const { api } = useAppContext();
+    const { mutateAsync: securityCheck } = useSecurityCheck();
+    const api = useActiveApi();
     const network = useActiveTonNetwork();
 
     return useMutation<void, Error, boolean>(async checked => {
@@ -47,7 +58,7 @@ const useToggleSubscribe = () => {
                 await notifications.subscribe(
                     api,
                     wallet,
-                    signTonConnectOver(sdk, account.id, t, checkTouchId)
+                    signTonConnectOver({ sdk, accountId: account.id, t, securityCheck })
                 );
             } catch (e) {
                 if (e instanceof Error) sdk.topMessage(e.message);
@@ -81,7 +92,7 @@ const SwitchNotification = () => {
     const { mutate: toggle, isLoading } = useToggleSubscribe();
 
     return (
-        <ListBlock>
+        <ListBlockDesktopAdaptive>
             <ListItem hover={false}>
                 <ListItemPayload>
                     <Block>
@@ -91,12 +102,25 @@ const SwitchNotification = () => {
                     <Switch checked={!!data} onChange={toggle} disabled={isFetching || isLoading} />
                 </ListItemPayload>
             </ListItem>
-        </ListBlock>
+        </ListBlockDesktopAdaptive>
     );
 };
 
 export const Notifications = () => {
     const { t } = useTranslation();
+
+    const isFullWidthMode = useIsFullWidthMode();
+
+    if (isFullWidthMode) {
+        return (
+            <DesktopViewPageLayout>
+                <DesktopViewHeader backButton>
+                    <DesktopViewHeaderContent title={t('settings_notifications')} />
+                </DesktopViewHeader>
+                <SwitchNotification />
+            </DesktopViewPageLayout>
+        );
+    }
 
     return (
         <>

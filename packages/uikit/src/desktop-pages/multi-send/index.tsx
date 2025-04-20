@@ -9,7 +9,7 @@ import { useRate } from '../../state/rates';
 import { TonAsset } from '@tonkeeper/core/dist/entries/crypto/asset/ton-asset';
 import { SkeletonText } from '../../components/shared/Skeleton';
 import { DesktopMultiSendFormPage } from './MultiSendFormPage';
-import { Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { Route, Switch } from 'react-router-dom';
 import { getWillBeMultiSendValue } from '../../components/desktop/multi-send/utils';
 import { ErrorBoundary } from 'react-error-boundary';
 import { fallbackRenderOver } from '../../components/Error';
@@ -18,6 +18,12 @@ import { unShiftedDecimals } from '@tonkeeper/core/dist/utils/balance';
 import { useTranslation } from '../../hooks/translation';
 import { useDisclosure } from '../../hooks/useDisclosure';
 import { ImportListNotification } from '../../components/desktop/multi-send/import-list/ImportListNotification';
+import { useActiveWallet } from '../../state/wallet';
+import { isStandardTonWallet } from '@tonkeeper/core/dist/entries/wallet';
+import { AppRoute } from '../../libs/routes';
+import { useNavigate } from '../../hooks/router/useNavigate';
+import { Navigate } from '../../components/shared/Navigate';
+import { useParams } from '../../hooks/router/useParams';
 
 const PageWrapper = styled.div`
     overflow: auto;
@@ -107,14 +113,21 @@ export const DesktopMultiSendPage: FC = () => {
     const navigate = useNavigate();
     const { isOpen, onClose, onOpen } = useDisclosure();
 
+    const wallet = useActiveWallet();
+    const isStandardWallet = isStandardTonWallet(wallet);
+
     useEffect(() => {
-        if (lists && !lists.length) {
+        if (lists && !lists.length && !isStandardWallet) {
             navigate('./list/' + 1);
         }
-    }, [lists]);
+    }, [lists, isStandardWallet]);
+
+    if (!isStandardWallet) {
+        return <Navigate to={AppRoute.home} />;
+    }
 
     const onCreateList = () => {
-        const id = Math.max(1, ...lists!.map(l => l.id)) + 1;
+        const id = Math.max(0, ...lists!.map(l => l.id)) + 1;
         navigate('./list/' + id);
     };
 
@@ -134,50 +147,47 @@ export const DesktopMultiSendPage: FC = () => {
     }
 
     return (
-        <Routes>
-            <Route path="/list/:id" element={<ListRouteElement />} />
-            <Route
-                path="*"
-                element={
-                    <ErrorBoundary
-                        fallbackRender={fallbackRenderOver('Failed to display multi-send page')}
-                    >
-                        <PageWrapper>
-                            <DesktopViewHeader
-                                backButton={<DesktopBackButtonStyled icon={<CloseIcon />} />}
-                            >
-                                <Label2>{t('multi_send_header')}</Label2>
-                            </DesktopViewHeader>
-                            <PageBodyWrapper>
-                                <ListBlockStyled>
-                                    <ListItemStyled onClick={onCreateList}>
-                                        <Body2>{t('multi_send_new_list')}</Body2>
-                                        <IconContainerStyled>
-                                            <ChevronRightIcon />
-                                        </IconContainerStyled>
-                                    </ListItemStyled>
-                                    <ListItemStyled onClick={onOpen}>
-                                        <Body2>{t('import_csv')}</Body2>
-                                        <IconContainerStyled>
-                                            <ChevronRightIcon />
-                                        </IconContainerStyled>
-                                    </ListItemStyled>
-                                    {lists.map(list => (
-                                        <MultiSendListElement
-                                            list={list}
-                                            key={list.id}
-                                            asset={list.token}
-                                            onClick={() => navigate('./list/' + list.id)}
-                                        />
-                                    ))}
-                                </ListBlockStyled>
-                            </PageBodyWrapper>
-                            <ImportListNotification isOpen={isOpen} onClose={onImportList} />
-                        </PageWrapper>
-                    </ErrorBoundary>
-                }
-            ></Route>
-        </Routes>
+        <Switch>
+            <Route path="/list/:id" component={ListRouteElement} />
+            <Route path="*">
+                <ErrorBoundary
+                    fallbackRender={fallbackRenderOver('Failed to display multi-send page')}
+                >
+                    <PageWrapper>
+                        <DesktopViewHeader
+                            backButton={<DesktopBackButtonStyled icon={<CloseIcon />} />}
+                        >
+                            <Label2>{t('multi_send_header')}</Label2>
+                        </DesktopViewHeader>
+                        <PageBodyWrapper>
+                            <ListBlockStyled>
+                                <ListItemStyled onClick={onCreateList}>
+                                    <Body2>{t('multi_send_new_list')}</Body2>
+                                    <IconContainerStyled>
+                                        <ChevronRightIcon />
+                                    </IconContainerStyled>
+                                </ListItemStyled>
+                                <ListItemStyled onClick={onOpen}>
+                                    <Body2>{t('import_csv')}</Body2>
+                                    <IconContainerStyled>
+                                        <ChevronRightIcon />
+                                    </IconContainerStyled>
+                                </ListItemStyled>
+                                {lists.map(list => (
+                                    <MultiSendListElement
+                                        list={list}
+                                        key={list.id}
+                                        asset={list.token}
+                                        onClick={() => navigate('./list/' + list.id)}
+                                    />
+                                ))}
+                            </ListBlockStyled>
+                        </PageBodyWrapper>
+                        <ImportListNotification isOpen={isOpen} onClose={onImportList} />
+                    </PageWrapper>
+                </ErrorBoundary>
+            </Route>
+        </Switch>
     );
 };
 

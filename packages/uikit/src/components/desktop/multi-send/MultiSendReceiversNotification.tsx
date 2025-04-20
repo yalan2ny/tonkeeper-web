@@ -1,15 +1,22 @@
 import { FC } from 'react';
 import { Notification } from '../../Notification';
-import styled, { createGlobalStyle } from 'styled-components';
+import styled from 'styled-components';
 import { Body2 } from '../../Text';
 import { formatAddress } from '@tonkeeper/core/dist/utils/common';
 import { MultiSendFormTokenized } from '../../../hooks/blockchain/useSendMultiTransfer';
 import { formatFiatCurrency, formatter } from '../../../hooks/balance';
 import { useAppContext } from '../../../hooks/appContext';
 import { useRate } from '../../../state/rates';
-import { TonAsset } from '@tonkeeper/core/dist/entries/crypto/asset/ton-asset';
+import {
+    TonAsset,
+    tonAssetAddressToString
+} from '@tonkeeper/core/dist/entries/crypto/asset/ton-asset';
 import { shiftedDecimals } from '@tonkeeper/core/dist/utils/balance';
 import { useTranslation } from '../../../hooks/translation';
+
+const NotificationStyled = styled(Notification)`
+    max-width: 1000px;
+`;
 
 export const MultiSendReceiversNotification: FC<{
     onClose: () => void;
@@ -18,23 +25,12 @@ export const MultiSendReceiversNotification: FC<{
     asset: TonAsset;
 }> = ({ onClose, isOpen, form, asset }) => {
     const { t } = useTranslation();
-    const WrapperStyles = createGlobalStyle`
-      .multi-send-receivers-notification {
-        max-width: 1000px;
-      }
-    `;
 
     return (
         <>
-            <WrapperStyles />
-            <Notification
-                title={t('wallets')}
-                isOpen={isOpen}
-                handleClose={onClose}
-                wrapperClassName="multi-send-receivers-notification"
-            >
+            <NotificationStyled title={t('wallets')} isOpen={isOpen} handleClose={onClose}>
                 {() => <ReceiversTable form={form} asset={asset} />}
-            </Notification>
+            </NotificationStyled>
         </>
     );
 };
@@ -86,7 +82,7 @@ const ReceiversTable: FC<{ form: MultiSendFormTokenized; asset: TonAsset }> = ({
     };
 
     const { fiat } = useAppContext();
-    const { data: rate } = useRate(asset.address === 'TON' ? 'TON' : asset.address.toRawString());
+    const { data: rate } = useRate(tonAssetAddressToString(asset.address));
 
     const fiatToString = (weiAmount: MultiSendFormTokenized['rows'][number]['weiAmount']) => {
         return formatFiatCurrency(

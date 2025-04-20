@@ -18,12 +18,14 @@ import {
     JettonPreviewFromJSON,
     JettonPreviewFromJSONTyped,
     JettonPreviewToJSON,
+    JettonPreviewToJSONTyped,
 } from './JettonPreview';
 import type { AccountAddress } from './AccountAddress';
 import {
     AccountAddressFromJSON,
     AccountAddressFromJSONTyped,
     AccountAddressToJSON,
+    AccountAddressToJSONTyped,
 } from './AccountAddress';
 
 /**
@@ -46,8 +48,15 @@ export interface ValueFlowJettonsInner {
     jetton: JettonPreview;
     /**
      * 
+     * @type {string}
+     * @memberof ValueFlowJettonsInner
+     */
+    qty: string;
+    /**
+     * 
      * @type {number}
      * @memberof ValueFlowJettonsInner
+     * @deprecated
      */
     quantity: number;
 }
@@ -58,6 +67,7 @@ export interface ValueFlowJettonsInner {
 export function instanceOfValueFlowJettonsInner(value: object): value is ValueFlowJettonsInner {
     if (!('account' in value) || value['account'] === undefined) return false;
     if (!('jetton' in value) || value['jetton'] === undefined) return false;
+    if (!('qty' in value) || value['qty'] === undefined) return false;
     if (!('quantity' in value) || value['quantity'] === undefined) return false;
     return true;
 }
@@ -74,18 +84,25 @@ export function ValueFlowJettonsInnerFromJSONTyped(json: any, ignoreDiscriminato
         
         'account': AccountAddressFromJSON(json['account']),
         'jetton': JettonPreviewFromJSON(json['jetton']),
+        'qty': json['qty'],
         'quantity': json['quantity'],
     };
 }
 
-export function ValueFlowJettonsInnerToJSON(value?: ValueFlowJettonsInner | null): any {
+export function ValueFlowJettonsInnerToJSON(json: any): ValueFlowJettonsInner {
+    return ValueFlowJettonsInnerToJSONTyped(json, false);
+}
+
+export function ValueFlowJettonsInnerToJSONTyped(value?: ValueFlowJettonsInner | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
+
     return {
         
         'account': AccountAddressToJSON(value['account']),
         'jetton': JettonPreviewToJSON(value['jetton']),
+        'qty': value['qty'],
         'quantity': value['quantity'],
     };
 }

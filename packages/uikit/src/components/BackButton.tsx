@@ -1,6 +1,5 @@
 import { IAppSdk } from '@tonkeeper/core/dist/AppSdk';
-import React, { FC, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { FC, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 import { useAppSdk } from '../hooks/appSdk';
 import { useTranslation } from '../hooks/translation';
@@ -8,6 +7,7 @@ import { AppRoute } from '../libs/routes';
 import { ChevronLeftIcon } from './Icon';
 import { Label2 } from './Text';
 import { RoundedButton } from './fields/RoundedButton';
+import { useNavigate } from '../hooks/router/useNavigate';
 
 const BackBlock = styled.div`
     position: absolute;
@@ -87,7 +87,7 @@ export const LogoutButton = () => {
         return (
             <LogoutBlock>
                 <LogoutButtonBlock onClick={back}>
-                    <Label2>{t('settings_reset')}</Label2>
+                    <Label2>{t('info_about_inactive_back')}</Label2>
                 </LogoutButtonBlock>
             </LogoutBlock>
         );

@@ -1,10 +1,21 @@
+import {
+    Account,
+    AccountMAM,
+    AccountTonMnemonic,
+    seeIfMainnnetAccount
+} from '@tonkeeper/core/dist/entries/account';
 import { CryptoCurrency } from '@tonkeeper/core/dist/entries/crypto';
-import { isPaidSubscription, ProState } from '@tonkeeper/core/dist/entries/pro';
+import { ProState, ProStateAuthorized, isPaidSubscription } from '@tonkeeper/core/dist/entries/pro';
+import {
+    DerivationItemNamed,
+    TonWalletStandard,
+    backwardCompatibilityOnlyWalletVersions,
+    sortWalletsByVersion
+} from '@tonkeeper/core/dist/entries/wallet';
 import { formatAddress, toShortValue } from '@tonkeeper/core/dist/utils/common';
 import { ProServiceTier } from '@tonkeeper/core/src/tonConsoleApi';
 import { FC, PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { useNotifyError } from '../../hooks/appSdk';
 import { useFormatCoinValue } from '../../hooks/balance';
 import { useEstimateTransfer } from '../../hooks/blockchain/useEstimateTransfer';
 import { useSendTransfer } from '../../hooks/blockchain/useSendTransfer';
@@ -19,30 +30,34 @@ import {
     useWaitInvoiceMutation
 } from '../../state/pro';
 import {
-    useAccountAndWalletByWalletId,
     useAccountsState,
-    useActiveTonNetwork
+    useActiveTonNetwork,
+    useControllableAccountAndWalletByWalletId
 } from '../../state/wallet';
 import { InnerBody } from '../Body';
-import { SubscriptionStatus } from '../desktop/aside/SubscriptionInfo';
-import { Button } from '../fields/Button';
-import { Radio } from '../fields/Checkbox';
-import { Input } from '../fields/Input';
 import { DoneIcon } from '../Icon';
 import { ColumnText } from '../Layout';
 import { ListBlock, ListItem, ListItemPayload } from '../List';
 import { Notification } from '../Notification';
 import { SubHeader } from '../SubHeader';
 import { Body1, Label1, Title } from '../Text';
-import { ConfirmView } from '../transfer/ConfirmView';
-import {
-    backwardCompatibilityOnlyWalletVersions,
-    sortWalletsByVersion,
-    TonWalletStandard
-} from '@tonkeeper/core/dist/entries/wallet';
-import { AccountTonMnemonic, Account } from '@tonkeeper/core/dist/entries/account';
-import { WalletEmoji } from '../shared/emoji/WalletEmoji';
 import { WalletVersionBadge } from '../account/AccountBadge';
+import { SubscriptionStatus } from '../desktop/aside/SubscriptionInfoBlock';
+import { Button } from '../fields/Button';
+import { Radio } from '../fields/Checkbox';
+import { Input } from '../fields/Input';
+import { WalletEmoji } from '../shared/emoji/WalletEmoji';
+import { ConfirmView } from '../transfer/ConfirmView';
+import { useNotifyError } from '../../hooks/useNotification';
+import { HideOnReview } from '../ios/HideOnReview';
+import { useIsFullWidthMode } from '../../hooks/useIsFullWidthMode';
+import {
+    DesktopViewHeader,
+    DesktopViewHeaderContent,
+    DesktopViewPageLayout
+} from '../desktop/DesktopViewLayout';
+import { ForTargetEnv } from '../shared/TargetEnv';
+import { useAppTargetEnv } from '../../hooks/appSdk';
 
 const Block = styled.div`
     display: flex;
@@ -76,7 +91,11 @@ const WalletBadgeStyled = styled(WalletVersionBadge)`
     display: inline-block;
 `;
 
-const WalletItem: FC<{ account: Account; wallet: TonWalletStandard }> = ({ account, wallet }) => {
+const WalletItem: FC<{
+    account: Account;
+    wallet: TonWalletStandard;
+    derivation?: DerivationItemNamed;
+}> = ({ account, wallet, derivation }) => {
     const network = useActiveTonNetwork();
     const address = toShortValue(formatAddress(wallet.rawAddress, network));
 
@@ -85,8 +104,8 @@ const WalletItem: FC<{ account: Account; wallet: TonWalletStandard }> = ({ accou
             noWrap
             text={
                 <>
-                    {account.name}
-                    <WalletEmojiStyled emoji={account.emoji} />
+                    {derivation?.name ?? account.name}
+                    <WalletEmojiStyled emoji={derivation?.emoji ?? account.emoji} />
                 </>
             }
             secondary={
@@ -104,33 +123,59 @@ const SelectLabel = styled(Label1)`
     margin-bottom: 8px;
 `;
 
+interface AccountWallet {
+    wallet: TonWalletStandard;
+    account: Account;
+    derivation?: DerivationItemNamed;
+}
+
 const SelectWallet: FC<{ onClose: () => void }> = ({ onClose }) => {
     const { t } = useTranslation();
     const { mutateAsync, error } = useSelectWalletForProMutation();
     useNotifyError(error);
-    const accounts = useAccountsState().filter(
-        acc => acc.type === 'mnemonic'
-    ) as AccountTonMnemonic[];
+    const accounts = useAccountsState()
+        .filter(seeIfMainnnetAccount)
+        .filter(acc => acc.type === 'mnemonic' || acc.type === 'mam') as (
+        | AccountTonMnemonic
+        | AccountMAM
+    )[];
+
+    const accountsWallets: AccountWallet[] = accounts.flatMap(a => {
+        if (a.type === 'mam') {
+            return a.derivations.map<AccountWallet>(derivation => ({
+                wallet: derivation.tonWallets[0],
+                account: a,
+                derivation
+            }));
+        }
+
+        return a.allTonWallets
+            .filter(w => !backwardCompatibilityOnlyWalletVersions.includes(w.version))
+            .sort(sortWalletsByVersion)
+            .map<AccountWallet>(w => ({
+                wallet: w,
+                account: a
+            }));
+    });
+
+    if (accountsWallets.length === 0) {
+        return <SelectLabel>{t('tonkeeper_pro_authorization')}</SelectLabel>;
+    }
 
     return (
         <>
             <SelectLabel>{t('select_wallet_for_authorization')}</SelectLabel>
             <ListBlock>
-                {accounts.flatMap(account =>
-                    account.allTonWallets
-                        .filter(w => !backwardCompatibilityOnlyWalletVersions.includes(w.version))
-                        .sort(sortWalletsByVersion)
-                        .map(wallet => (
-                            <ListItem
-                                key={wallet.id}
-                                onClick={() => mutateAsync(wallet.id).then(() => onClose())}
-                            >
-                                <ListItemPayload>
-                                    <WalletItem account={account} wallet={wallet} />
-                                </ListItemPayload>
-                            </ListItem>
-                        ))
-                )}
+                {accountsWallets.flatMap(({ account, wallet, derivation }) => (
+                    <ListItem
+                        key={wallet.id}
+                        onClick={() => mutateAsync(wallet.id).then(() => onClose())}
+                    >
+                        <ListItemPayload>
+                            <WalletItem account={account} wallet={wallet} derivation={derivation} />
+                        </ListItemPayload>
+                    </ListItem>
+                ))}
             </ListBlock>
         </>
     );
@@ -147,7 +192,9 @@ const ProWallet: FC<{
     onClick: () => void;
     disabled?: boolean;
 }> = ({ data, onClick, disabled }) => {
-    const { account, wallet } = useAccountAndWalletByWalletId(data.wallet.rawAddress)!;
+    const { account, wallet } = useControllableAccountAndWalletByWalletId(
+        data.authorizedWallet?.rawAddress || undefined
+    );
 
     if (!account || !wallet) {
         return null;
@@ -246,17 +293,28 @@ const ConfirmBuyProService: FC<
         } & ConfirmState
     >
 > = ({ ...rest }) => {
-    const estimation = useEstimateTransfer(rest.recipient, rest.assetAmount, false);
-    const mutation = useSendTransfer(rest.recipient, rest.assetAmount, false, estimation.data!);
+    const estimation = useEstimateTransfer({
+        recipient: rest.recipient,
+        amount: rest.assetAmount,
+        isMax: false,
+        senderType: 'external'
+    });
+    const mutation = useSendTransfer({
+        recipient: rest.recipient,
+        amount: rest.assetAmount,
+        isMax: false,
+        estimation: estimation.data!,
+        senderType: 'external'
+    });
 
     return <ConfirmView estimation={estimation} {...mutation} {...rest} />;
 };
 
-const BuyProService: FC<{ data: ProState; setReLogin: () => void; onSuccess?: () => void }> = ({
-    data,
-    setReLogin,
-    onSuccess
-}) => {
+const BuyProService: FC<{
+    data: ProStateAuthorized;
+    setReLogin: () => void;
+    onSuccess?: () => void;
+}> = ({ data, setReLogin, onSuccess }) => {
     const { t } = useTranslation();
 
     const ref = useRef<HTMLDivElement>(null);
@@ -306,6 +364,7 @@ const BuyProService: FC<{ data: ProState; setReLogin: () => void; onSuccess?: ()
             />
             <Line>
                 <Input
+                    id="battery-promocode"
                     isSuccess={promoCode !== undefined}
                     disabled={isLoading}
                     value={promo}
@@ -364,7 +423,7 @@ const PreServiceStatus: FC<{ data: ProState; setReLogin: () => void }> = ({ data
 const ProContent: FC<{ data: ProState; onSuccess?: () => void }> = ({ data, onSuccess }) => {
     const [reLogin, setReLogin] = useState(false);
 
-    if (!data.hasWalletAuthCookie || reLogin) {
+    if (!data.authorizedWallet || reLogin) {
         return <SelectWallet onClose={() => setReLogin(false)} />;
     }
     if (isPaidSubscription(data.subscription)) {
@@ -388,18 +447,63 @@ export const ProSettingsContent: FC<{ showLogo?: boolean; onSuccess?: () => void
                 <Title>{t('tonkeeper_pro')}</Title>
                 <Description>{t('tonkeeper_pro_description')}</Description>
             </Block>
-            {data && <ProContent key={data.wallet.rawAddress} data={data} onSuccess={onSuccess} />}
+            {data && (
+                <ProContent
+                    key={data.authorizedWallet?.rawAddress}
+                    data={data}
+                    onSuccess={onSuccess}
+                />
+            )}
         </>
     );
 };
 
 export const ProSettings: FC = () => {
+    const env = useAppTargetEnv();
+
+    if (env === 'mobile') {
+        return null;
+    }
+
     return (
-        <>
+        <HideOnReview>
+            <ProSettingsResponsive />
+        </HideOnReview>
+    );
+};
+
+const DesktopViewPageLayoutStyled = styled(DesktopViewPageLayout)`
+    padding: 1rem 1rem 0;
+    box-sizing: border-box;
+
+    * {
+        box-sizing: border-box;
+    }
+`;
+
+export const ProSettingsResponsive: FC = () => {
+    const isProDisplay = useIsFullWidthMode();
+    const { t } = useTranslation();
+
+    if (isProDisplay) {
+        return (
+            <DesktopViewPageLayoutStyled>
+                <ForTargetEnv env="mobile">
+                    <DesktopViewHeader>
+                        <DesktopViewHeaderContent title={t('tonkeeper_pro')} />
+                    </DesktopViewHeader>
+                </ForTargetEnv>
+                <ProSettingsContent />
+            </DesktopViewPageLayoutStyled>
+        );
+    }
+
+    return (
+        <HideOnReview>
             <SubHeader />
             <InnerBody>
                 <ProSettingsContent />
             </InnerBody>
-        </>
+        </HideOnReview>
     );
 };

@@ -1,14 +1,20 @@
 import React, {
+    ComponentProps,
+    FC,
     forwardRef,
+    Fragment,
     PropsWithChildren,
-    useCallback,
     useEffect,
+    useMemo,
     useRef,
     useState
 } from 'react';
 import styled, { css } from 'styled-components';
 import { Transition, TransitionStatus } from 'react-transition-group';
 import { mergeRefs } from '../libs/common';
+import { BorderSmallResponsive } from './shared/Styles';
+import { DoneIcon } from './Icon';
+import ReactPortal from './ReactPortal';
 
 const DropDownContainer = styled.div`
     position: relative;
@@ -58,25 +64,21 @@ export const DropDownListPayload = styled.div`
     white-space: nowrap;
 `;
 
-const ListItem = styled.div`
-    cursor: pointer;
-    padding: 10px 20px;
-
-    &:hover {
-        background: ${props => props.theme.backgroundHighlighted};
-    }
-`;
-
-function useOutsideAlerter(ref: React.RefObject<Node>, onClick: (e: MouseEvent) => void) {
+function useOutsideAlerter(
+    ref: React.RefObject<Node>,
+    onClick: (e: MouseEvent | TouchEvent) => void
+) {
     useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
+        function handleClickOutside(event: MouseEvent | TouchEvent) {
             if (ref.current && !ref.current.contains(event.target as Node)) {
                 onClick(event);
             }
         }
         document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside);
         };
     }, [ref, onClick]);
 }
@@ -88,21 +90,11 @@ const Container = forwardRef<
         children: React.ReactNode;
         center?: boolean;
         className?: string;
-        hostRef?: React.RefObject<HTMLDivElement>;
     }
->(({ onClose, children, center, className, hostRef }, ref) => {
+>(({ onClose, children, center, className }, ref) => {
     const wrapperRef = useRef<HTMLDivElement>(null);
 
-    const onClick = useCallback(
-        (e: MouseEvent) => {
-            if (!hostRef?.current || !hostRef.current.contains(e.target as Node)) {
-                onClose();
-            }
-        },
-        [onClose]
-    );
-
-    useOutsideAlerter(wrapperRef, onClick);
+    useOutsideAlerter(wrapperRef, onClose);
     return (
         <DropDownListContainer
             ref={mergeRefs(wrapperRef, ref)}
@@ -120,6 +112,8 @@ export interface DropDownProps extends PropsWithChildren {
     disabled?: boolean;
     className?: string;
     containerClassName?: string;
+    trigger?: 'click' | 'hover';
+    portal?: boolean;
 }
 
 const ContainerStyled = styled(Container)<{ status: TransitionStatus }>`
@@ -127,15 +121,38 @@ const ContainerStyled = styled(Container)<{ status: TransitionStatus }>`
     opacity: ${p => (p.status === 'entering' || p.status === 'entered' ? 1 : 0)};
 `;
 
+let pointerEventsBlockings: number[] = [];
+const blockPointerEvents = () => {
+    const id = Date.now();
+    pointerEventsBlockings.push(id);
+    document.getElementById('root')?.classList.add('pointer-events-none');
+    return id;
+};
+const unblockPointerEvents = (id: number) => {
+    pointerEventsBlockings = pointerEventsBlockings.filter(i => i !== id);
+    if (pointerEventsBlockings.length === 0) {
+        document.getElementById('root')?.classList.remove('pointer-events-none');
+    }
+};
+
 export const DropDown = ({
     children,
     payload,
     center,
     disabled,
     className,
-    containerClassName
+    containerClassName,
+    trigger = 'click',
+    portal
 }: DropDownProps) => {
     const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && portal) {
+            const id = blockPointerEvents();
+            return () => void setTimeout(() => unblockPointerEvents(id), 150);
+        }
+    }, [isOpen, portal]);
 
     const toggling = () => {
         if (!disabled) {
@@ -172,67 +189,98 @@ export const DropDown = ({
         };
     }, [ref]);
 
+    const onClickHost = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (trigger === 'click') {
+            onOpen(e);
+        }
+    };
+
+    const onMouseHoverHost = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (trigger === 'hover') {
+            onOpen(e);
+        }
+    };
+
+    const Wrapper = useMemo(() => (portal ? ReactPortal : Fragment), [portal]);
+
     return (
         <DropDownContainer ref={ref} className={className}>
-            <DropDownHeader ref={hostRef} onClick={onOpen}>
+            <DropDownHeader
+                ref={hostRef}
+                onClick={onClickHost}
+                onMouseOver={onMouseHoverHost}
+                onMouseOut={onMouseHoverHost}
+            >
                 {children}
             </DropDownHeader>
-            <Transition in={isOpen} timeout={150} nodeRef={containerRef} unmountOnExit mountOnEnter>
-                {status => (
-                    <ContainerStyled
-                        onClose={toggling}
-                        center={center}
-                        className={containerClassName}
-                        hostRef={hostRef}
-                        status={status}
-                        ref={containerRef}
-                    >
-                        {payload(toggling)}
-                    </ContainerStyled>
-                )}
-            </Transition>
+            <Wrapper>
+                <Transition
+                    in={isOpen}
+                    timeout={150}
+                    nodeRef={containerRef}
+                    unmountOnExit
+                    mountOnEnter
+                >
+                    {status => (
+                        <ContainerStyled
+                            onClose={() => setIsOpen(false)}
+                            center={center}
+                            className={containerClassName}
+                            status={status}
+                            ref={containerRef}
+                        >
+                            {payload(toggling)}
+                        </ContainerStyled>
+                    )}
+                </Transition>
+            </Wrapper>
         </DropDownContainer>
     );
 };
 
-export interface DropDownListProps<T> extends PropsWithChildren {
-    options: T[];
-    renderOption: (option: T) => React.ReactNode;
-    onSelect: (option: T) => void;
-    center?: boolean;
-    disabled?: boolean;
-}
+export const DropDownItemsDivider = styled.div`
+    height: 1px;
+    background: ${p => p.theme.separatorCommon};
+`;
 
-// eslint-disable-next-line @typescript-eslint/comma-dangle
-export const DropDownList = <T,>({
-    children,
-    options,
-    renderOption,
-    onSelect,
-    center,
-    disabled
-}: DropDownListProps<T>) => {
+export const DropDownContent = styled.div`
+    background: ${p => p.theme.backgroundContentTint};
+    ${BorderSmallResponsive};
+
+    ${DropDownItemsDivider}:last-child {
+        display: none;
+    }
+`;
+
+const DropDownListItemStyled = styled.div`
+    padding: 10px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+
+    transition: background 0.1s ease-in-out;
+
+    ${p =>
+        p.theme.proDisplayType !== 'mobile' &&
+        css`
+    &:hover {
+        background: ${props => props.theme.backgroundHighlighted};
+    `}
+`;
+
+const DoneIconStyled = styled(DoneIcon)`
+    flex-shrink: 0;
+    margin-left: auto;
+    color: ${p => p.theme.accentBlue};
+`;
+
+export const DropDownItem: FC<
+    PropsWithChildren<{ isSelected: boolean } & ComponentProps<'div'>>
+> = ({ isSelected, children, ...rest }) => {
     return (
-        <DropDown
-            disabled={disabled}
-            center={center}
-            payload={onClose => (
-                <DropDownListPayload>
-                    {options.map((option, index) => (
-                        <ListItem
-                            key={index}
-                            onClick={() => {
-                                onClose();
-                                onSelect(option);
-                            }}
-                        >
-                            {renderOption(option)}
-                        </ListItem>
-                    ))}
-                </DropDownListPayload>
-            )}
-        >
+        <DropDownListItemStyled {...rest}>
             {children}
-        </DropDown>
+            {isSelected && <DoneIconStyled />}
+        </DropDownListItemStyled>
     );
 };

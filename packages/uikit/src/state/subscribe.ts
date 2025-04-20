@@ -1,14 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
-import { TonWalletStandard } from '@tonkeeper/core/dist/entries/wallet';
-import { useAppContext } from '../hooks/appContext';
+import { TonContract } from '@tonkeeper/core/dist/entries/wallet';
 import { useAppSdk } from '../hooks/appSdk';
+import { useActiveApi } from './wallet';
 
 export const useSubscribeMutation = (
-    wallet: TonWalletStandard,
+    wallet: TonContract,
     signTonConnect: (bufferToSign: Buffer) => Promise<Buffer | Uint8Array>,
     onDone: () => void
 ) => {
-    const { api } = useAppContext();
+    const api = useActiveApi();
     const sdk = useAppSdk();
     return useMutation(async () => {
         const { notifications } = sdk;

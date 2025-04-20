@@ -1,4 +1,5 @@
-import React, { FC, useEffect, useRef, useState } from 'react';
+import { validatePassword } from '@tonkeeper/core/dist/service/passwordService';
+import React, { FC, useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useAppSdk } from '../../hooks/appSdk';
 import { useTranslation } from '../../hooks/translation';
@@ -6,7 +7,7 @@ import { CenterContainer } from '../Layout';
 import { H2 } from '../Text';
 import { Button } from '../fields/Button';
 import { Input } from '../fields/Input';
-import { validatePassword } from '@tonkeeper/core/dist/service/passwordService';
+import { Notification } from '../Notification';
 
 const Block = styled.form`
     display: flex;
@@ -56,6 +57,7 @@ export const CreatePassword: FC<{
             <Block onSubmit={onCreate}>
                 <H2>{t('Create_password')}</H2>
                 <Input
+                    id="create-password"
                     ref={ref}
                     type="password"
                     label={t('Password')}
@@ -69,6 +71,7 @@ export const CreatePassword: FC<{
                 />
 
                 <Input
+                    id="create-password-confirm"
                     type="password"
                     label={t('ConfirmPassword')}
                     value={confirm}
@@ -92,5 +95,27 @@ export const CreatePassword: FC<{
                 </Button>
             </Block>
         </CenterContainer>
+    );
+};
+
+export const CreatePasswordNotification: FC<{
+    isOpen: boolean;
+    handleClose: (password?: string) => void;
+}> = ({ isOpen, handleClose }) => {
+    const { t } = useTranslation();
+
+    const Content = useCallback(() => {
+        return <CreatePassword afterCreate={handleClose} />;
+    }, []);
+
+    return (
+        <Notification
+            isOpen={isOpen}
+            handleClose={handleClose}
+            title={t('set_up_password')}
+            hideButton
+        >
+            {Content}
+        </Notification>
     );
 };

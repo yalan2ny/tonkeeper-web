@@ -1,7 +1,7 @@
 import React, { FC } from 'react';
 import styled, { css } from 'styled-components';
 import { LaterButton, LogoutButton } from './BackButton';
-import { Body2, H2, Label1 } from './Text';
+import { Body2, Body3Class, H2, Label1, Label2Class } from './Text';
 
 export const Gap = styled.div`
     flex-grow: 1;
@@ -22,11 +22,17 @@ const Body = styled(Body2)`
     color: ${props => props.theme.textSecondary};
 `;
 
-export const CenterContainer = styled.div`
-    height: 100%;
+export const CenterContainer = styled.div<{ $mobileFitContent?: boolean }>`
     display: flex;
     flex-direction: column;
     justify-content: center;
+
+    ${p =>
+        p.theme.proDisplayType === 'mobile' &&
+        !p.$mobileFitContent &&
+        css`
+            height: 100%;
+        `}
 `;
 
 export const IconPage: FC<{
@@ -88,6 +94,8 @@ const Label = styled(Label1)<{ green?: boolean; noWrap?: boolean }>`
                   overflow: hidden;
               `
             : undefined}
+    
+    ${p => p.theme.displayType === 'full-width' && Label2Class}
 `;
 
 const Secondary = styled(Body2)<{ noWrap?: boolean }>`
@@ -98,6 +106,8 @@ const Secondary = styled(Body2)<{ noWrap?: boolean }>`
                   white-space: nowrap;
               `
             : undefined}
+
+    ${p => p.theme.displayType === 'full-width' && Body3Class}
 `;
 
 export const ColumnText: FC<{

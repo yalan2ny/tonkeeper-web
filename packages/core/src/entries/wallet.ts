@@ -2,6 +2,7 @@ import { Language } from './language';
 import { Network } from './network';
 import { DeprecatedAuthState } from './password';
 import { WalletProxy } from './proxy';
+import { TronWallet } from './tron/tron-wallet';
 
 export enum WalletVersion {
     V3R1 = 0,
@@ -95,6 +96,9 @@ export interface DeprecatedWalletState {
 
     revision: number;
 
+    /**
+     * @deprecated
+     */
     network?: Network;
 
     hiddenJettons?: string[];
@@ -105,8 +109,6 @@ export interface DeprecatedWalletState {
     theme?: string;
 
     proxy?: WalletProxy;
-
-    tron?: TronWalletStorage;
 }
 
 export type WalletId = string;
@@ -119,13 +121,22 @@ export type TonContract = {
 export type TonWalletStandard = TonContract & {
     publicKey: string;
     version: WalletVersion;
+    network?: Network;
 };
 
 export type DerivationItem = {
     index: number;
     activeTonWalletId: WalletId;
     tonWallets: TonWalletStandard[];
-    //  tronWallets: never;
+    /**
+     * undefined for old wallets
+     */
+    tronWallet?: TronWallet;
+};
+
+export type DerivationItemNamed = DerivationItem & {
+    name: string;
+    emoji: string;
 };
 
 export function isStandardTonWallet(wallet: TonContract): wallet is TonWalletStandard {
@@ -139,6 +150,13 @@ export interface TonWalletConfig {
     hiddenNfts: string[];
     trustedNfts: string[];
     spamNfts: string[];
+    batterySettings: {
+        enabledForSwaps: boolean;
+        enabledForTokens: boolean;
+        enabledForNfts: boolean;
+    };
+    cachedOwnCollectablesNumber?: number;
+    cachedHasHistory?: boolean;
 }
 
 export const defaultPreferencesConfig: TonWalletConfig = {
@@ -147,16 +165,10 @@ export const defaultPreferencesConfig: TonWalletConfig = {
     pinnedNfts: [],
     hiddenNfts: [],
     trustedNfts: [],
-    spamNfts: []
+    spamNfts: [],
+    batterySettings: {
+        enabledForSwaps: true,
+        enabledForTokens: true,
+        enabledForNfts: true
+    }
 };
-
-export interface TronWalletStorage {
-    ownerWalletAddress: string;
-    walletByChain: Record<string, string>;
-}
-
-export interface TronWalletState {
-    ownerWalletAddress: string;
-    chainId: string;
-    walletAddress: string;
-}

@@ -1,16 +1,14 @@
 import { Notification } from '../../Notification';
-import { FC, Ref, useCallback, useEffect, useRef } from 'react';
-import { atom, useAtom } from '../../../libs/atom';
+import { FC, useCallback } from 'react';
+import { useAtom } from '../../../libs/useAtom';
 import { TonAsset } from '@tonkeeper/core/dist/entries/crypto/asset/ton-asset';
-import { createGlobalStyle, css, styled } from 'styled-components';
+import { css, styled } from 'styled-components';
 import { SwapSearchInput } from './SwapSearchInput';
 import { SwapTokensList } from './SwapTokensList';
-import {
-    useSwapTokensFilter,
-    useWalletFilteredSwapAssets
-} from '../../../state/swap/useSwapAssets';
+import { useWalletFilteredSwapAssets } from '../../../state/swap/useSwapAssets';
 import { SpinnerIcon } from '../../Icon';
 import { useTranslation } from '../../../hooks/translation';
+import { atom } from '@tonkeeper/core/dist/entries/atom';
 
 const swapTokensListOpened$ = atom<{ onClose: (token: TonAsset | undefined) => void } | undefined>(
     undefined
@@ -27,10 +25,8 @@ export const useOpenSwapTokensList = (onClose: (token: TonAsset | undefined) => 
     );
 };
 
-const WrapperStyles = createGlobalStyle`
-  .tokens-list-notification-wrapper .dialog-content {
+const NotificationStyled = styled(Notification)`
     padding-bottom: 0;
-  }
 `;
 
 export const SwapTokensListNotification: FC = () => {
@@ -44,16 +40,15 @@ export const SwapTokensListNotification: FC = () => {
 
     return (
         <>
-            <WrapperStyles />
-            <Notification
+            <NotificationStyled
                 isOpen={!!onSelect}
                 handleClose={() => onClose(undefined)}
                 title={t('swap_tokens')}
                 footer={<div />}
-                wrapperClassName="tokens-list-notification-wrapper"
+                mobileFullScreen
             >
                 {() => <SwapTokensListContent onSelect={onClose} />}
-            </Notification>
+            </NotificationStyled>
         </>
     );
 };
@@ -64,12 +59,16 @@ const SwapSearchInputStyled = styled(SwapSearchInput)`
 
 const SwapTokensListContentWrapper = styled.div`
     ${p =>
-        p.theme.displayType === 'full-width'
+        p.theme.proDisplayType === 'desktop'
             ? css`
                   height: 580px;
               `
+            : p.theme.proDisplayType === 'mobile'
+            ? css`
+                  height: calc(var(--app-height) - env(safe-area-inset-bottom));
+              `
             : css`
-                  height: calc(var(--app-height) - 6rem);
+                  height: calc(var(--app-height) - 8rem);
               `}
 `;
 
@@ -91,20 +90,10 @@ const SwapTokensListContent: FC<{ onSelect: (token: TonAsset | undefined) => voi
     onSelect
 }) => {
     const walletSwapAssets = useWalletFilteredSwapAssets();
-    const inputRef = useRef<HTMLInputElement | undefined>();
-    const [_, setFilter] = useSwapTokensFilter();
-
-    useEffect(() => {
-        setTimeout(() => inputRef?.current?.focus(), 100);
-        return () => setFilter('');
-    }, []);
 
     return (
         <SwapTokensListContentWrapper>
-            <SwapSearchInputStyled
-                ref={inputRef as Ref<HTMLInputElement> | undefined}
-                isDisabled={!walletSwapAssets}
-            />
+            <SwapSearchInputStyled isDisabled={!walletSwapAssets} />
             <Divider />
             {walletSwapAssets ? (
                 <SwapTokensList onSelect={onSelect} walletSwapAssets={walletSwapAssets} />

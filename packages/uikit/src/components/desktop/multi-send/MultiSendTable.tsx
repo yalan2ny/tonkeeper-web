@@ -4,13 +4,12 @@ import { TonAsset, isTon } from '@tonkeeper/core/dist/entries/crypto/asset/ton-a
 import { DnsRecipient, TonRecipient } from '@tonkeeper/core/dist/entries/send';
 import { isW5Version } from '@tonkeeper/core/dist/entries/wallet';
 import { arrayToCsvString } from '@tonkeeper/core/dist/service/parserService';
-import { MAX_ALLOWED_WALLET_MSGS } from '@tonkeeper/core/dist/service/transfer/multiSendService';
 import { shiftedDecimals } from '@tonkeeper/core/dist/utils/balance';
 import BigNumber from 'bignumber.js';
 import { FC, useEffect, useState } from 'react';
 import { Controller, FormProvider, useFieldArray, useForm, useFormContext } from 'react-hook-form';
 import { ControllerRenderProps } from 'react-hook-form/dist/types/controller';
-import { Link, useBlocker, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import styled, { css } from 'styled-components';
 import { useAppContext } from '../../../hooks/appContext';
 import { formatter } from '../../../hooks/balance';
@@ -39,7 +38,7 @@ import { IconButton } from '../../fields/IconButton';
 import { SkeletonText } from '../../shared/Skeleton';
 import { ProFeaturesNotification } from '../pro/ProFeaturesNotification';
 import { AmountInput } from './AmountInput';
-import { AssetSelect } from './AssetSelect';
+import { MultisendAssetSelect } from './MultisendAssetSelect';
 import { CommentInput } from './CommentInput';
 import { DeleteListNotification } from './DeleteListNotification';
 import { EditListNotification } from './EditListNotification';
@@ -51,7 +50,11 @@ import { ImportListNotification } from './import-list/ImportListNotification';
 import { getWillBeMultiSendValue } from './utils';
 import { removeGroupSeparator } from '@tonkeeper/core/dist/utils/send';
 import { getDecimalSeparator } from '@tonkeeper/core/dist/utils/formatting';
-import { useActiveWallet } from '../../../state/wallet';
+import { useActiveStandardTonWallet } from '../../../state/wallet';
+import { MAX_ALLOWED_WALLET_MSGS } from '@tonkeeper/core/dist/service/ton-blockchain/utils';
+import { HideOnReview } from '../../ios/HideOnReview';
+import { useNavigate } from '../../../hooks/router/useNavigate';
+import { useBlocker } from '../../../hooks/router/useBlocker';
 
 const FormHeadingWrapper = styled.div`
     display: flex;
@@ -222,7 +225,7 @@ export const MultiSendTable: FC<{
         <>
             <ImportListNotification isOpen={isImportOpen} onClose={onImportList} />
             <FormHeadingWrapper>
-                <AssetSelect asset={asset} onAssetChange={setAsset} />
+                <MultisendAssetSelect asset={asset} onAssetChange={setAsset} />
                 <Button
                     secondary
                     as="a"
@@ -319,7 +322,7 @@ const MultiSendAddMore: FC<{
 }> = ({ onAdd, fieldsNumber }) => {
     const { t } = useTranslation();
 
-    const wallet = useActiveWallet();
+    const wallet = useActiveStandardTonWallet();
 
     if (fieldsNumber < MAX_ALLOWED_WALLET_MSGS[wallet.version]) {
         return (
@@ -340,7 +343,7 @@ const MultiSendAddMore: FC<{
         );
     }
 
-    if (isW5Version(wallet.version)) {
+    if (!isW5Version(wallet.version)) {
         return (
             <MaximumReachedContainer>
                 <Body2>{t('multi_send_maximum_reached')}</Body2>
@@ -483,7 +486,7 @@ const MultiSendFooter: FC<{
 
     const { formState: formValidationState } = useAsyncValidationState();
 
-    const wallet = useActiveWallet();
+    const wallet = useActiveStandardTonWallet();
 
     const maxMsgsNumberExceeded = watch('rows').length > MAX_ALLOWED_WALLET_MSGS[wallet.version];
 
@@ -543,9 +546,11 @@ const MultiSendFooter: FC<{
                         {t('continue')}
                     </Button>
                 ) : (
-                    <Button type="button" primary onClick={onBuyPro}>
-                        {t('multi_send_continue_with_pro')}
-                    </Button>
+                    <HideOnReview>
+                        <Button type="button" primary onClick={onBuyPro}>
+                            {t('multi_send_continue_with_pro')}
+                        </Button>
+                    </HideOnReview>
                 )}
             </MultiSendFooterWrapper>
             <SaveListNotification

@@ -13,12 +13,13 @@
  */
 
 import { mapValues } from '../runtime';
-import type { DecodeMessageRequest } from './DecodeMessageRequest';
+import type { GaslessEstimateRequestMessagesInner } from './GaslessEstimateRequestMessagesInner';
 import {
-    DecodeMessageRequestFromJSON,
-    DecodeMessageRequestFromJSONTyped,
-    DecodeMessageRequestToJSON,
-} from './DecodeMessageRequest';
+    GaslessEstimateRequestMessagesInnerFromJSON,
+    GaslessEstimateRequestMessagesInnerFromJSONTyped,
+    GaslessEstimateRequestMessagesInnerToJSON,
+    GaslessEstimateRequestMessagesInnerToJSONTyped,
+} from './GaslessEstimateRequestMessagesInner';
 
 /**
  * 
@@ -26,6 +27,18 @@ import {
  * @interface GaslessEstimateRequest
  */
 export interface GaslessEstimateRequest {
+    /**
+     * TONAPI verifies that the account has enough jettons to pay the commission and make a transfer.
+     * @type {boolean}
+     * @memberof GaslessEstimateRequest
+     */
+    throwErrorIfNotEnoughJettons?: boolean;
+    /**
+     * 
+     * @type {boolean}
+     * @memberof GaslessEstimateRequest
+     */
+    returnEmulation?: boolean;
     /**
      * 
      * @type {string}
@@ -40,10 +53,10 @@ export interface GaslessEstimateRequest {
     walletPublicKey: string;
     /**
      * 
-     * @type {Array<DecodeMessageRequest>}
+     * @type {Array<GaslessEstimateRequestMessagesInner>}
      * @memberof GaslessEstimateRequest
      */
-    messages: Array<DecodeMessageRequest>;
+    messages: Array<GaslessEstimateRequestMessagesInner>;
 }
 
 /**
@@ -66,21 +79,30 @@ export function GaslessEstimateRequestFromJSONTyped(json: any, ignoreDiscriminat
     }
     return {
         
+        'throwErrorIfNotEnoughJettons': json['throw_error_if_not_enough_jettons'] == null ? undefined : json['throw_error_if_not_enough_jettons'],
+        'returnEmulation': json['return_emulation'] == null ? undefined : json['return_emulation'],
         'walletAddress': json['wallet_address'],
         'walletPublicKey': json['wallet_public_key'],
-        'messages': ((json['messages'] as Array<any>).map(DecodeMessageRequestFromJSON)),
+        'messages': ((json['messages'] as Array<any>).map(GaslessEstimateRequestMessagesInnerFromJSON)),
     };
 }
 
-export function GaslessEstimateRequestToJSON(value?: GaslessEstimateRequest | null): any {
+export function GaslessEstimateRequestToJSON(json: any): GaslessEstimateRequest {
+    return GaslessEstimateRequestToJSONTyped(json, false);
+}
+
+export function GaslessEstimateRequestToJSONTyped(value?: GaslessEstimateRequest | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
+
     return {
         
+        'throw_error_if_not_enough_jettons': value['throwErrorIfNotEnoughJettons'],
+        'return_emulation': value['returnEmulation'],
         'wallet_address': value['walletAddress'],
         'wallet_public_key': value['walletPublicKey'],
-        'messages': ((value['messages'] as Array<any>).map(DecodeMessageRequestToJSON)),
+        'messages': ((value['messages'] as Array<any>).map(GaslessEstimateRequestMessagesInnerToJSON)),
     };
 }
 

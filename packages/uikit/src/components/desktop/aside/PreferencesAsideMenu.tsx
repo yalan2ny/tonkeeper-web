@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { AsideMenuItem } from '../../shared/AsideItem';
-import { Body2, Label2 } from '../../Text';
+import { Body3, Label2 } from '../../Text';
 import {
     AppearanceIcon,
     BankIcon,
@@ -10,26 +10,28 @@ import {
     ExitIcon,
     GlobeIcon,
     LockIcon,
-    PlaceIcon,
     SlidersIcon,
     TelegramIcon,
     TonkeeperSkeletIcon
 } from '../../Icon';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { AppRoute, SettingsRoute } from '../../../libs/routes';
 import { useTranslation } from '../../../hooks/translation';
-import { useAppSdk } from '../../../hooks/appSdk';
+import { useAppSdk, useAppTargetEnv } from '../../../hooks/appSdk';
 import { useAppContext } from '../../../hooks/appContext';
 import { DeleteAllNotification } from '../../settings/DeleteAccountNotification';
-import React from 'react';
+import React, { FC } from 'react';
 import { useDisclosure } from '../../../hooks/useDisclosure';
-import { capitalize, getCountryName, getLanguageName } from '../../../libs/common';
-import { useCountrySetting } from '../../../state/country';
+import { capitalize, getLanguageName } from '../../../libs/common';
 import { Skeleton } from '../../shared/Skeleton';
 import { useProState } from '../../../state/pro';
-import { availableThemes, useUserUIPreferences } from '../../../state/theme';
+import { useAvailableThemes, useUserUIPreferences } from '../../../state/theme';
 import { hexToRGBA } from '../../../libs/css';
-import { useAccountsState } from '../../../state/wallet';
+import { useAccountsState, useActiveConfig } from '../../../state/wallet';
+import { useShouldShowSecurityPage } from '../../../pages/settings/Security';
+import { HideOnReview } from '../../ios/HideOnReview';
+import { NavLink } from '../../shared/NavLink';
+import { ForTargetEnv, NotForTargetEnv } from '../../shared/TargetEnv';
 
 const PreferencesAsideContainer = styled.div`
     width: fit-content;
@@ -50,7 +52,10 @@ const PreferencesAsideContainer = styled.div`
 `;
 
 const AsideMenuItemStyled = styled(AsideMenuItem)`
-    background: ${p => (p.isSelected ? p.theme.backgroundContentTint : 'unset')};
+    background: ${p =>
+        p.isSelected && p.theme.proDisplayType !== 'mobile'
+            ? p.theme.backgroundContentTint
+            : 'unset'};
     padding-right: 50px;
 
     svg {
@@ -68,7 +73,7 @@ const AsideMenuItemLargeBody = styled.div`
     flex-direction: column;
     text-align: start;
 
-    ${Body2} {
+    ${Body3} {
         color: ${p => p.theme.textSecondary};
     }
 `;
@@ -77,24 +82,26 @@ const AsideMenuItemsBlock = styled.div`
     padding: 0.5rem;
 `;
 
-export const PreferencesAsideMenu = () => {
+export const PreferencesAsideMenu: FC<{ className?: string }> = ({ className }) => {
     const { t, i18n } = useTranslation();
     const location = useLocation();
 
     const isCoinPageOpened = location.pathname.startsWith(AppRoute.coins);
 
     const sdk = useAppSdk();
-    const { config } = useAppContext();
+    const config = useActiveConfig();
     const { isOpen, onClose, onOpen } = useDisclosure();
-    const { data: countryData } = useCountrySetting();
-    const country = countryData === null ? t('auto') : countryData;
     const { data: proState } = useProState();
     const { data: uiPreferences } = useUserUIPreferences();
     const { fiat } = useAppContext();
     const wallets = useAccountsState();
 
+    const showSecurityPage = useShouldShowSecurityPage();
+    const env = useAppTargetEnv();
+    const availableThemes = useAvailableThemes();
+
     return (
-        <PreferencesAsideContainer>
+        <PreferencesAsideContainer className={className}>
             <AsideMenuItemsBlock>
                 <NavLink to={AppRoute.settings + SettingsRoute.account}>
                     {({ isActive }) => (
@@ -104,30 +111,36 @@ export const PreferencesAsideMenu = () => {
                         </AsideMenuItemStyled>
                     )}
                 </NavLink>
-                <NavLink to={AppRoute.settings + SettingsRoute.security}>
-                    {({ isActive }) => (
-                        <AsideMenuItemStyled isSelected={isActive || isCoinPageOpened}>
-                            <LockIcon />
-                            <Label2>{t('settings_security')}</Label2>
-                        </AsideMenuItemStyled>
-                    )}
-                </NavLink>
-                <NavLink to={AppRoute.settings + SettingsRoute.pro}>
-                    {({ isActive }) => (
-                        <AsideMenuItemStyled isSelected={isActive}>
-                            <TonkeeperSkeletIcon />
-                            <Label2>{t('tonkeeper_pro')}</Label2>
-                        </AsideMenuItemStyled>
-                    )}
-                </NavLink>
-                {proState?.subscription.valid && (
+                {showSecurityPage && (
+                    <NavLink to={AppRoute.settings + SettingsRoute.security}>
+                        {({ isActive }) => (
+                            <AsideMenuItemStyled isSelected={isActive || isCoinPageOpened}>
+                                <LockIcon />
+                                <Label2>{t('settings_security')}</Label2>
+                            </AsideMenuItemStyled>
+                        )}
+                    </NavLink>
+                )}
+                <NotForTargetEnv env="mobile">
+                    <HideOnReview>
+                        <NavLink to={AppRoute.settings + SettingsRoute.pro}>
+                            {({ isActive }) => (
+                                <AsideMenuItemStyled isSelected={isActive}>
+                                    <TonkeeperSkeletIcon />
+                                    <Label2>{t('tonkeeper_pro')}</Label2>
+                                </AsideMenuItemStyled>
+                            )}
+                        </NavLink>
+                    </HideOnReview>
+                </NotForTargetEnv>
+                {(proState?.subscription.valid || env === 'mobile') && (
                     <NavLink to={AppRoute.settings + SettingsRoute.theme}>
                         {({ isActive }) => (
                             <AsideMenuItemLarge isSelected={isActive}>
                                 <AppearanceIcon />
                                 <AsideMenuItemLargeBody>
                                     <Label2>{t('preferences_aside_theme')}</Label2>
-                                    <Body2>
+                                    <Body3>
                                         {!uiPreferences ? (
                                             <Skeleton width="60px" height="14px" margin="3px 0" />
                                         ) : (
@@ -136,7 +149,7 @@ export const PreferencesAsideMenu = () => {
                                                     Object.keys(availableThemes)[0]
                                             )
                                         )}
-                                    </Body2>
+                                    </Body3>
                                 </AsideMenuItemLargeBody>
                             </AsideMenuItemLarge>
                         )}
@@ -148,7 +161,7 @@ export const PreferencesAsideMenu = () => {
                             <GlobeIcon />
                             <AsideMenuItemLargeBody>
                                 <Label2>{t('Localization')}</Label2>
-                                <Body2>{getLanguageName(i18n.language)}</Body2>
+                                <Body3>{getLanguageName(i18n.language)}</Body3>
                             </AsideMenuItemLargeBody>
                         </AsideMenuItemLarge>
                     )}
@@ -159,52 +172,44 @@ export const PreferencesAsideMenu = () => {
                             <BankIcon />
                             <AsideMenuItemLargeBody>
                                 <Label2>{t('settings_primary_currency')}</Label2>
-                                <Body2>{fiat}</Body2>
-                            </AsideMenuItemLargeBody>
-                        </AsideMenuItemLarge>
-                    )}
-                </NavLink>
-                <NavLink to={AppRoute.settings + SettingsRoute.country}>
-                    {({ isActive }) => (
-                        <AsideMenuItemLarge isSelected={isActive}>
-                            <PlaceIcon />
-                            <AsideMenuItemLargeBody>
-                                <Label2>{t('country')}</Label2>
-                                <Body2>
-                                    {!country ? (
-                                        <Skeleton width="60px" height="14px" margin="3px 0" />
-                                    ) : (
-                                        getCountryName(i18n.language, country)
-                                    )}
-                                </Body2>
+                                <Body3>{fiat}</Body3>
                             </AsideMenuItemLargeBody>
                         </AsideMenuItemLarge>
                     )}
                 </NavLink>
             </AsideMenuItemsBlock>
 
+            <ForTargetEnv env="mobile">
+                <AsideMenuItemsBlock>
+                    <AsideMenuItemStyled
+                        onClick={() => config.faq_url && sdk.openPage(config.faq_url)}
+                        isSelected={false}
+                    >
+                        <GlobeIcon />
+                        <Label2>{t('preferences_aside_faq')}</Label2>
+                    </AsideMenuItemStyled>
+                    <AsideMenuItemStyled
+                        onClick={() =>
+                            config.directSupportUrl && sdk.openPage(config.directSupportUrl)
+                        }
+                        isSelected={false}
+                    >
+                        <TelegramIcon />
+                        <Label2>{t('settings_support')}</Label2>
+                    </AsideMenuItemStyled>
+                    <AsideMenuItemStyled
+                        onClick={() =>
+                            config.tonkeeperNewsUrl && sdk.openPage(config.tonkeeperNewsUrl)
+                        }
+                        isSelected={false}
+                    >
+                        <TelegramIcon />
+                        <Label2>{t('settings_news')}</Label2>
+                    </AsideMenuItemStyled>
+                </AsideMenuItemsBlock>
+            </ForTargetEnv>
+
             <AsideMenuItemsBlock>
-                <AsideMenuItemStyled
-                    onClick={() => config.faq_url && sdk.openPage(config.faq_url)}
-                    isSelected={false}
-                >
-                    <GlobeIcon />
-                    <Label2>{t('preferences_aside_faq')}</Label2>
-                </AsideMenuItemStyled>
-                <AsideMenuItemStyled
-                    onClick={() => config.directSupportUrl && sdk.openPage(config.directSupportUrl)}
-                    isSelected={false}
-                >
-                    <TelegramIcon />
-                    <Label2>{t('settings_support')}</Label2>
-                </AsideMenuItemStyled>
-                <AsideMenuItemStyled
-                    onClick={() => config.tonkeeperNewsUrl && sdk.openPage(config.tonkeeperNewsUrl)}
-                    isSelected={false}
-                >
-                    <TelegramIcon />
-                    <Label2>{t('settings_news')}</Label2>
-                </AsideMenuItemStyled>
                 <AsideMenuItemStyled
                     onClick={() => config.supportLink && sdk.openPage(config.supportLink)}
                     isSelected={false}

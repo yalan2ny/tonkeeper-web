@@ -18,9 +18,9 @@
  * @export
  */
 export const AccStatusChange = {
-    Unchanged: 'acst_unchanged',
-    Frozen: 'acst_frozen',
-    Deleted: 'acst_deleted'
+    AcstUnchanged: 'acst_unchanged',
+    AcstFrozen: 'acst_frozen',
+    AcstDeleted: 'acst_deleted'
 } as const;
 export type AccStatusChange = typeof AccStatusChange[keyof typeof AccStatusChange];
 
@@ -46,5 +46,9 @@ export function AccStatusChangeFromJSONTyped(json: any, ignoreDiscriminator: boo
 
 export function AccStatusChangeToJSON(value?: AccStatusChange | null): any {
     return value as any;
+}
+
+export function AccStatusChangeToJSONTyped(value: any, ignoreDiscriminator: boolean): AccStatusChange {
+    return value as AccStatusChange;
 }
 

@@ -9,3 +9,12 @@ export function hexToRGBA(hex: string, alpha?: string | number): string {
         return 'rgb(' + r + ', ' + g + ', ' + b + ')';
     }
 }
+
+export const revertHoverForTouchscreens = `@media (pointer: coarse) {
+        a:hover {
+            all: revert-layer;
+        }
+    }`;
+
+export const cn = (...classNames: (string | undefined | boolean)[]) =>
+    classNames.filter(Boolean).join(' ');

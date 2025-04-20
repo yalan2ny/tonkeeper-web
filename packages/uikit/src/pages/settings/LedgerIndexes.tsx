@@ -8,17 +8,24 @@ import { Body2, Label1 } from '../../components/Text';
 import { useTranslation } from '../../hooks/translation';
 import {
     useTonWalletsBalances,
-    useMutateActiveLedgerAccountDerivation,
+    useMutateAccountActiveDerivation,
     useAddLedgerAccountDerivation,
     useRemoveLedgerAccountDerivation,
     useActiveAccount
 } from '../../state/wallet';
-import { ListBlock, ListItem, ListItemPayload } from '../../components/List';
+import { ListBlockDesktopAdaptive, ListItem, ListItemPayload } from '../../components/List';
 import { toFormattedTonBalance } from '../../hooks/balance';
 import { Button } from '../../components/fields/Button';
-import { useNavigate } from 'react-router-dom';
 import { AppRoute } from '../../libs/routes';
-import { SkeletonList } from '../../components/Skeleton';
+import { SkeletonListDesktopAdaptive } from '../../components/Skeleton';
+import { useIsFullWidthMode } from '../../hooks/useIsFullWidthMode';
+import {
+    DesktopViewHeader,
+    DesktopViewHeaderContent,
+    DesktopViewPageLayout
+} from '../../components/desktop/DesktopViewLayout';
+import { Navigate } from '../../components/shared/Navigate';
+import { useNavigate } from '../../hooks/router/useNavigate';
 
 const TextContainer = styled.span`
     flex-direction: column;
@@ -38,8 +45,20 @@ const ButtonsContainer = styled.div`
 export const LedgerIndexesPage = () => {
     const { t } = useTranslation();
     const account = useActiveAccount();
+    const isFullWidth = useIsFullWidthMode();
     if (account.type !== 'ledger') {
-        return null;
+        return <Navigate to="../" />;
+    }
+
+    if (isFullWidth) {
+        return (
+            <DesktopViewPageLayout>
+                <DesktopViewHeader backButton>
+                    <DesktopViewHeaderContent title={t('settings_ledger_indexes')} />
+                </DesktopViewHeader>
+                <LedgerIndexesPageContent account={account} />
+            </DesktopViewPageLayout>
+        );
     }
 
     return (
@@ -55,11 +74,12 @@ export const LedgerIndexesPage = () => {
 export const LedgerIndexesPageContent: FC<{
     afterWalletOpened?: () => void;
     account: AccountLedger;
-}> = ({ afterWalletOpened, account }) => {
+    className?: string;
+}> = ({ afterWalletOpened, account, className }) => {
     const { t } = useTranslation();
 
     const { mutateAsync: selectDerivation, isLoading: isSelectDerivationLoading } =
-        useMutateActiveLedgerAccountDerivation();
+        useMutateAccountActiveDerivation();
     const navigate = useNavigate();
 
     const { data: balances } = useTonWalletsBalances(
@@ -97,7 +117,12 @@ export const LedgerIndexesPageContent: FC<{
     };
 
     if (!balances) {
-        return <SkeletonList size={account.allAvailableDerivations.length} />;
+        return (
+            <SkeletonListDesktopAdaptive
+                className={className}
+                size={account.allAvailableDerivations.length}
+            />
+        );
     }
 
     const isLoading =
@@ -105,7 +130,7 @@ export const LedgerIndexesPageContent: FC<{
     const canHide = account.derivations.length > 1;
 
     return (
-        <ListBlock>
+        <ListBlockDesktopAdaptive className={className}>
             {balances.map((balance, index) => {
                 const derivationIndex = account.allAvailableDerivations[index].index;
 
@@ -121,7 +146,6 @@ export const LedgerIndexesPageContent: FC<{
                                 <Body2Secondary>
                                     {toShortValue(formatAddress(balance.address)) + ' '}·
                                     {' ' + toFormattedTonBalance(balance.tonBalance)}&nbsp;TON
-                                    {balance.hasJettons && t('wallet_version_and_tokens')}
                                 </Body2Secondary>
                             </TextContainer>
                             {isDerivationAdded ? (
@@ -154,6 +178,6 @@ export const LedgerIndexesPageContent: FC<{
                     </ListItem>
                 );
             })}
-        </ListBlock>
+        </ListBlockDesktopAdaptive>
     );
 };

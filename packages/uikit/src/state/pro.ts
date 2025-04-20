@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AssetAmount } from '@tonkeeper/core/dist/entries/crypto/asset/asset-amount';
-import { ProState, ProSubscription } from '@tonkeeper/core/dist/entries/pro';
+import { ProState, ProStateAuthorized, ProSubscription } from '@tonkeeper/core/dist/entries/pro';
 import { RecipientData } from '@tonkeeper/core/dist/entries/send';
-import { isStandardTonWallet, TonWalletStandard } from '@tonkeeper/core/dist/entries/wallet';
+import { TonWalletStandard, isStandardTonWallet } from '@tonkeeper/core/dist/entries/wallet';
 import {
     authViaTonConnect,
     createProServiceInvoice,
@@ -11,23 +11,30 @@ import {
     getProServiceTiers,
     getProState,
     logoutTonConsole,
+    ProAuthTokenService,
+    retryProService,
     setBackupState,
     startProServiceTrial,
     waitProServiceInvoice
 } from '@tonkeeper/core/dist/service/proService';
-import { InvoicesInvoice } from '@tonkeeper/core/dist/tonConsoleApi';
+import { InvoicesInvoice, OpenAPI } from '@tonkeeper/core/dist/tonConsoleApi';
 import { ProServiceTier } from '@tonkeeper/core/src/tonConsoleApi/models/ProServiceTier';
 import { useMemo } from 'react';
 import { useAppContext } from '../hooks/appContext';
-import { useAppSdk } from '../hooks/appSdk';
+import { useAppSdk, useAppTargetEnv } from '../hooks/appSdk';
 import { useTranslation } from '../hooks/translation';
-import { QueryKey } from '../libs/queryKey';
-import { signTonConnectOver } from './mnemonic';
-import { useCheckTouchId } from './password';
-import { useActiveWallet } from './wallet';
-import { useUserLanguage } from './language';
 import { useAccountsStorage } from '../hooks/useStorage';
-import { getAccountByWalletById, getWalletById } from '@tonkeeper/core/dist/entries/account';
+import { QueryKey } from '../libs/queryKey';
+import { useUserLanguage } from './language';
+import { signTonConnectOver } from './mnemonic';
+import { useSecurityCheck } from './password';
+import {
+    getAccountByWalletById,
+    getWalletById,
+    isAccountTonWalletStandard
+} from '@tonkeeper/core/dist/entries/account';
+import { useActiveApi } from './wallet';
+import { AppKey } from '@tonkeeper/core/dist/Keys';
 
 export const useProBackupState = () => {
     const sdk = useAppSdk();
@@ -38,14 +45,56 @@ export const useProBackupState = () => {
     );
 };
 
+export const useProAuthTokenService = (): ProAuthTokenService => {
+    const appPlatform = useAppTargetEnv();
+    const storage = useAppSdk().storage;
+
+    return useMemo(() => {
+        if (appPlatform === 'tablet' || appPlatform === 'mobile') {
+            return {
+                async attachToken() {
+                    const token = await storage.get<string>(AppKey.PRO_AUTH_TOKEN);
+                    OpenAPI.TOKEN = token ?? undefined;
+                },
+                async onTokenUpdated(token: string | null) {
+                    await storage.set(AppKey.PRO_AUTH_TOKEN, token);
+                    return this.attachToken();
+                }
+            };
+        } else {
+            return {
+                async attachToken() {
+                    /* */
+                },
+                async onTokenUpdated() {
+                    /* */
+                }
+            };
+        }
+    }, [appPlatform]);
+};
+
 export const useProState = () => {
-    const wallet = useActiveWallet();
     const sdk = useAppSdk();
     const client = useQueryClient();
+    const authService = useProAuthTokenService();
+    const env = useAppTargetEnv();
+
     return useQuery<ProState, Error>([QueryKey.pro], async () => {
-        // TODO а что если активный кошелек не стандартный?
-        // TODO сделать флоу подписки
-        const state = await getProState(sdk.storage, wallet);
+        let state: ProState;
+
+        if (env === 'mobile') {
+            state = {
+                authorizedWallet: null,
+                subscription: {
+                    isFree: true,
+                    valid: true,
+                    isTrial: false
+                }
+            };
+        } else {
+            state = await getProState(authService, sdk.storage);
+        }
         await setBackupState(sdk.storage, state.subscription);
         await client.invalidateQueries([QueryKey.proBackup]);
         return state;
@@ -55,19 +104,21 @@ export const useProState = () => {
 export const useSelectWalletForProMutation = () => {
     const sdk = useAppSdk();
     const client = useQueryClient();
-    const { api } = useAppContext();
+    const api = useActiveApi();
     const { t } = useTranslation();
-    const { mutateAsync: checkTouchId } = useCheckTouchId();
+    const { mutateAsync: securityCheck } = useSecurityCheck();
     const accountsStorage = useAccountsStorage();
+    const authService = useProAuthTokenService();
 
     return useMutation<void, Error, string>(async walletId => {
-        const accounts = await accountsStorage.getAccounts();
+        const accounts = (await accountsStorage.getAccounts()).filter(isAccountTonWalletStandard);
         const account = getAccountByWalletById(accounts, walletId);
-        const wallet = getWalletById(accounts, walletId);
 
         if (!account) {
             throw new Error('Account not found');
         }
+
+        const wallet = getWalletById(accounts, walletId);
 
         if (!wallet) {
             throw new Error('Missing wallet state');
@@ -77,7 +128,12 @@ export const useSelectWalletForProMutation = () => {
             throw new Error("Can't use non-standard ton wallet for pro auth");
         }
 
-        await authViaTonConnect(api, wallet, signTonConnectOver(sdk, account.id, t, checkTouchId));
+        await authViaTonConnect(
+            authService,
+            api,
+            wallet,
+            signTonConnectOver({ sdk, accountId: account.id, wallet, t, securityCheck })
+        );
 
         await client.invalidateQueries([QueryKey.pro]);
     });
@@ -85,8 +141,10 @@ export const useSelectWalletForProMutation = () => {
 
 export const useProLogout = () => {
     const client = useQueryClient();
+    const authService = useProAuthTokenService();
+
     return useMutation(async () => {
-        await logoutTonConsole();
+        await logoutTonConsole(authService);
         await client.invalidateQueries([QueryKey.pro]);
     });
 };
@@ -122,11 +180,11 @@ export interface ConfirmState {
 
 export const useCreateInvoiceMutation = () => {
     const ws = useAccountsStorage();
-    const { api } = useAppContext();
+    const api = useActiveApi();
     return useMutation<
         ConfirmState,
         Error,
-        { state: ProState; tierId: number | null; promoCode?: string }
+        { state: ProStateAuthorized; tierId: number | null; promoCode?: string }
     >(async data => {
         if (data.tierId === null) {
             throw new Error('missing tier');
@@ -134,7 +192,7 @@ export const useCreateInvoiceMutation = () => {
 
         const wallet = (await ws.getAccounts())
             .flatMap(a => a.allTonWallets)
-            .find(w => w.id === data.state.wallet.rawAddress);
+            .find(w => w.id === data.state.authorizedWallet.rawAddress);
         if (!wallet || !isStandardTonWallet(wallet)) {
             throw new Error('Missing wallet');
         }
@@ -152,8 +210,12 @@ export const useCreateInvoiceMutation = () => {
 
 export const useWaitInvoiceMutation = () => {
     const client = useQueryClient();
+    const sdk = useAppSdk();
+    const authService = useProAuthTokenService();
+
     return useMutation<void, Error, ConfirmState>(async data => {
         await waitProServiceInvoice(data.invoice);
+        await retryProService(authService, sdk.storage);
         await client.invalidateQueries([QueryKey.pro]);
     });
 };
@@ -164,9 +226,11 @@ export const useActivateTrialMutation = () => {
     const {
         i18n: { language }
     } = useTranslation();
+    const authService = useProAuthTokenService();
 
     return useMutation<boolean, Error>(async () => {
         const result = await startProServiceTrial(
+            authService,
             (ctx.env as { tgAuthBotId: string }).tgAuthBotId,
             language
         );

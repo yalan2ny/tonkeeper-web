@@ -2,10 +2,7 @@ import { useMainButton } from '@tma.js/sdk-react';
 import { BLOCKCHAIN_NAME } from '@tonkeeper/core/dist/entries/crypto';
 import { NFT } from '@tonkeeper/core/dist/entries/nft';
 import { RecipientData, TonRecipientData } from '@tonkeeper/core/dist/entries/send';
-import {
-    TonTransferParams,
-    parseTonTransfer
-} from '@tonkeeper/core/dist/service/deeplinkingService';
+import { parseTonTransferWithAddress } from '@tonkeeper/core/dist/service/deeplinkingService';
 import { ConfirmViewButtons } from '@tonkeeper/uikit/dist/components/transfer/ConfirmView';
 import {
     RecipientView,
@@ -17,7 +14,6 @@ import {
     duration
 } from '@tonkeeper/uikit/dist/components/transfer/common';
 import { ConfirmNftView } from '@tonkeeper/uikit/dist/components/transfer/nft/ConfirmNftView';
-import { useMinimalBalance } from '@tonkeeper/uikit/dist/components/transfer/nft/hooks';
 import { useAppSdk } from '@tonkeeper/uikit/dist/hooks/appSdk';
 import { openIosKeyboard } from '@tonkeeper/uikit/dist/hooks/ios';
 import { useTranslation } from '@tonkeeper/uikit/dist/hooks/translation';
@@ -33,8 +29,11 @@ import {
 import { HideTwaBackButton, RecipientTwaHeaderBlock } from '../transfer/SendNotificationHeader';
 import { NftIndexView } from './NftIndexView';
 
-const PageWrapper = styled(Wrapper)`
-    padding: 0 12px 10px;
+const Body = styled.div`
+    padding: 0 16px 16px;
+    box-sizing: border-box;
+    height: 100vh;
+    overflow: auto;
 `;
 
 const Content: FC<{ nftItem: NFT; handleClose: () => void }> = ({ nftItem, handleClose }) => {
@@ -46,7 +45,6 @@ const Content: FC<{ nftItem: NFT; handleClose: () => void }> = ({ nftItem, handl
 
     const mainButton = useMainButton();
     const { mutateAsync: getAccountAsync } = useGetToAccount();
-    const { mutateAsync: checkBalanceAsync, isLoading: isChecking } = useMinimalBalance();
 
     const indexRef = useRef<HTMLDivElement>(null);
     const recipientRef = useRef<HTMLDivElement>(null);
@@ -68,7 +66,6 @@ const Content: FC<{ nftItem: NFT; handleClose: () => void }> = ({ nftItem, handl
     const favoriteState = useFavoriteNotification(onFavorite);
 
     const onRecipient = async (data: RecipientData) => {
-        await checkBalanceAsync();
         setRight(true);
         setRecipient(data as TonRecipientData);
         setView('confirm');
@@ -92,7 +89,7 @@ const Content: FC<{ nftItem: NFT; handleClose: () => void }> = ({ nftItem, handl
     }, []);
 
     const processRecipient = useCallback(
-        async ({ address }: TonTransferParams) => {
+        async ({ address }: { address: string }) => {
             const item = { address: address };
             const toAccount = await getAccountAsync(item);
 
@@ -107,7 +104,7 @@ const Content: FC<{ nftItem: NFT; handleClose: () => void }> = ({ nftItem, handl
     );
 
     const onScan = async (signature: string) => {
-        const param = parseTonTransfer({ url: signature });
+        const param = parseTonTransferWithAddress({ url: signature });
         if (param === null) {
             return sdk.uiEvents.emit('copy', {
                 method: 'copy',
@@ -126,7 +123,7 @@ const Content: FC<{ nftItem: NFT; handleClose: () => void }> = ({ nftItem, handl
     }[view];
 
     return (
-        <PageWrapper standalone={false} extension={false}>
+        <Wrapper standalone={false} extension={true}>
             <HideTwaMainButton />
             <HideTwaBackButton />
             <TransitionGroup childFactory={childFactoryCreator(right)}>
@@ -147,7 +144,6 @@ const Content: FC<{ nftItem: NFT; handleClose: () => void }> = ({ nftItem, handl
                                 data={recipient}
                                 setRecipient={onRecipient}
                                 onScan={onScan}
-                                isExternalLoading={isChecking}
                                 acceptBlockchains={[BLOCKCHAIN_NAME.TON]}
                                 MainButton={RecipientTwaMainButton}
                                 HeaderBlock={() => (
@@ -163,14 +159,17 @@ const Content: FC<{ nftItem: NFT; handleClose: () => void }> = ({ nftItem, handl
                                 onClose={handleClose}
                                 recipient={recipient!}
                                 nftItem={nftItem}
-                                mainButton={<ConfirmViewButtons MainButton={ConfirmTwaMainButton} />}
+                                mainButton={
+                                    <ConfirmViewButtons MainButton={ConfirmTwaMainButton} />
+                                }
                                 headerBlock={<RecipientTwaHeaderBlock onClose={backToRecipient} />}
+                                isAnimationProcess={false}
                             />
                         )}
                     </div>
                 </CSSTransition>
             </TransitionGroup>
-        </PageWrapper>
+        </Wrapper>
     );
 };
 
@@ -194,7 +193,11 @@ export const TwaNftNotification: FC<PropsWithChildren> = ({ children }) => {
     }, [sdk, setNft]);
 
     if (nftItem) {
-        return <Content nftItem={nftItem} handleClose={handleClose} />;
+        return (
+            <Body>
+                <Content nftItem={nftItem} handleClose={handleClose} />
+            </Body>
+        );
     } else {
         return <>{children}</>;
     }

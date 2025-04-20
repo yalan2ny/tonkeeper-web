@@ -2,11 +2,12 @@ import { FC, useEffect } from 'react';
 import styled from 'styled-components';
 import { InnerBody } from '../../components/Body';
 import { BrowserHeader } from '../../components/Header';
+import { PromotionsCarousel } from '../../components/browser/PromotionsCarousel';
 import { RecommendationsPageBodySkeleton } from '../../components/skeletons/BrowserSkeletons';
 import { useOpenBrowser } from '../../hooks/amplitude';
 import { useRecommendations } from '../../hooks/browser/useRecommendations';
 import { CategoryBlock } from './CategoryBlock';
-import { PromotionsCarousel } from '../../components/browser/PromotionsCarousel';
+import { HideOnReview } from '../../components/ios/HideOnReview';
 
 const InnerBodyStyled = styled(InnerBody)`
     padding: 0;
@@ -33,12 +34,14 @@ export const BrowserRecommendationsPage: FC = () => {
     }, [track, data]);
 
     return (
-        <>
+        <HideOnReview>
             <BrowserHeader />
             <InnerBodyStyled>
                 {data ? (
                     <>
-                        <PromotionsCarouselStyled apps={data.apps} />
+                        {data.apps.length > 0 ? (
+                            <PromotionsCarouselStyled apps={data.apps} />
+                        ) : null}
                         {data.categories.map(category => (
                             <CategoryBlockStyled key={category.id} category={category} />
                         ))}
@@ -49,6 +52,6 @@ export const BrowserRecommendationsPage: FC = () => {
                     </SkeletonContainer>
                 )}
             </InnerBodyStyled>
-        </>
+        </HideOnReview>
     );
 };
