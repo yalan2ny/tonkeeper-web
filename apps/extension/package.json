@@ -1,6 +1,6 @@
 {
     "name": "@tonkeeper/extension",
-    "version": "3.28.2",
+    "version": "3.30.3",
     "author": "Ton APPS UK Limited <support@tonkeeper.com>",
     "description": "Your extension wallet on The Open Network",
     "dependencies": {
@@ -45,7 +45,7 @@
         "ts-loader": "^9.4.2",
         "ts-node": "^10.9.1",
         "typescript": "^4.9.4",
-        "webpack": "^5.80.0",
+        "webpack": "^5.98.0",
         "webpack-cli": "^5.1.3"
     },
     "scripts": {
