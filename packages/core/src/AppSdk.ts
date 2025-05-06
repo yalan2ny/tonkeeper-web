@@ -8,6 +8,7 @@ import { TonContract, TonWalletStandard } from './entries/wallet';
 import { KeystoneMessageType, KeystonePathInfo } from './service/keystone/types';
 import { LedgerTonProofRequest, LedgerTransaction } from './service/ledger/connector';
 import { TonTransferParams } from './service/deeplinkingService';
+import { atom, ReadonlyAtom } from './entries/atom';
 
 export type GetPasswordType = 'confirm' | 'unlock';
 
@@ -94,6 +95,11 @@ export interface NotificationService {
     subscribed: (address: string) => Promise<boolean>;
 }
 
+export interface InternetConnectionService {
+    isOnline: ReadonlyAtom<boolean>;
+    retry: () => Promise<boolean>;
+}
+
 export interface IAppSdk {
     storage: IStorage;
     nativeBackButton?: NativeBackButton;
@@ -121,12 +127,14 @@ export interface IAppSdk {
 
     requestExtensionPermission: () => Promise<void>;
     twaExpand?: () => void;
-    hapticNotification: (type: 'success' | 'error') => void;
+    hapticNotification: (type: 'success' | 'error' | 'impact_medium' | 'impact_light') => void;
 
     notifications?: NotificationService;
     targetEnv: TargetEnv;
 
     storeUrl?: string;
+    reloadApp: () => void;
+    connectionService: InternetConnectionService;
 }
 
 export abstract class BaseApp implements IAppSdk {
@@ -176,11 +184,36 @@ export abstract class BaseApp implements IAppSdk {
 
     twaExpand = () => {};
 
-    hapticNotification = (type: 'success' | 'error') => {};
+    hapticNotification = (_: 'success' | 'error' | 'impact_medium' | 'impact_light') => {};
 
     version = '0.0.0';
 
+    reloadApp = () => {
+        window.location.reload();
+    };
+
+    connectionService: InternetConnectionService = new WebConnectionService();
+
     abstract targetEnv: TargetEnv;
+}
+
+class WebConnectionService implements InternetConnectionService {
+    isOnline = atom(this.checkIsOnline());
+
+    constructor() {
+        window.addEventListener('online', () => this.isOnline.next(true));
+        window.addEventListener('offline', () => this.isOnline.next(false));
+    }
+
+    private checkIsOnline() {
+        return window.navigator.onLine;
+    }
+
+    public async retry() {
+        const isOnline = this.checkIsOnline();
+        this.isOnline.next(isOnline);
+        return isOnline;
+    }
 }
 
 export class MockAppSdk extends BaseApp {
@@ -191,4 +224,11 @@ export class MockAppSdk extends BaseApp {
     }
 }
 
-export type TargetEnv = 'web' | 'extension' | 'desktop' | 'twa' | 'tablet' | 'swap_widget_web';
+export type TargetEnv =
+    | 'web'
+    | 'extension'
+    | 'desktop'
+    | 'twa'
+    | 'tablet'
+    | 'swap_widget_web'
+    | 'mobile';

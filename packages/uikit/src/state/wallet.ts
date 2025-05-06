@@ -9,6 +9,7 @@ import {
     AccountsState,
     AccountTonMnemonic,
     AccountTonMultisig,
+    AccountTonOnly,
     AccountTonSK,
     AccountTonTestnet,
     AccountTonWatchOnly,
@@ -39,6 +40,7 @@ import {
 } from '@tonkeeper/core/dist/service/wallet/configService';
 import { walletContract } from '@tonkeeper/core/dist/service/wallet/contractService';
 import {
+    accountBySignerLink,
     createMAMAccountByMnemonic,
     createMultisigTonAccount,
     createReadOnlyTonAccountByAddress,
@@ -50,6 +52,7 @@ import {
     getTonWalletStandard,
     getWalletAddress,
     mamAccountToMamAccountWithTron,
+    parseSignerLink,
     standardTonAccountToAccountWithTron,
     tronWalletByTonMnemonic
 } from '@tonkeeper/core/dist/service/walletService';
@@ -61,7 +64,7 @@ import { useAppSdk } from '../hooks/appSdk';
 import { useAccountsStorage } from '../hooks/useStorage';
 import { anyOfKeysParts, QueryKey } from '../libs/queryKey';
 import { getAccountSecret, getPasswordByNotification, useGetActiveAccountSecret } from './mnemonic';
-import { useCheckTouchId } from './password';
+import { useMutateSecuritySettings, useSecurityCheck } from './password';
 import {
     encryptWalletSecret,
     seeIfMnemonicValid,
@@ -73,6 +76,9 @@ import { useDeleteFolder } from './folders';
 import { useRemoveAccountTwoFAData } from './two-fa';
 import { assertUnreachable } from '@tonkeeper/core/dist/utils/types';
 import { useIsTronEnabledGlobally } from './tron/tron';
+import { useNavigate } from '../hooks/router/useNavigate';
+import { AppRoute } from '../libs/routes';
+import { isSignerLink } from './signer';
 
 export { useAccountsStateQuery, useAccountsState };
 
@@ -223,7 +229,7 @@ export const useCreateMAMAccountDerivation = () => {
     const sdk = useAppSdk();
     const appContext = useAppContext();
     const network = useActiveTonNetwork();
-    const { mutateAsync: checkTouchId } = useCheckTouchId();
+    const { mutateAsync: securityCheck } = useSecurityCheck();
 
     return useMutation<void, Error, { accountId: AccountId }>(async ({ accountId }) => {
         const account = await storage.getAccount(accountId);
@@ -232,7 +238,7 @@ export const useCreateMAMAccountDerivation = () => {
         }
         const newDerivationIndex = account.lastAddedIndex + 1;
 
-        const secret = await getAccountSecret(sdk, accountId, checkTouchId);
+        const secret = await getAccountSecret(sdk, accountId, securityCheck);
         if (secret.type !== 'mnemonic') {
             throw new Error('Unexpected secret type');
         }
@@ -682,7 +688,7 @@ export const useCreateAccountMAM = () => {
     const isTronEnabledGlobally = useIsTronEnabledGlobally();
 
     return useMutation<
-        AccountMAM,
+        { account: AccountMAM; childrenMnemonics: string[][] },
         Error,
         {
             mnemonic: string[];
@@ -697,6 +703,11 @@ export const useCreateAccountMAM = () => {
         };
 
         const isTronEnabled = defaultAccountConfig.enableTron && isTronEnabledGlobally;
+
+        const rootAccount = await TonKeychainRoot.fromMnemonic(mnemonic);
+        const childrenMnemonics: string[][] = (
+            await Promise.all((selectedDerivations || []).map(i => rootAccount.getTonAccount(i)))
+        ).map(a => a.mnemonics);
 
         if (sdk.keychain) {
             const account = await createMAMAccountByMnemonic(context, sdk.storage, mnemonic, {
@@ -716,7 +727,7 @@ export const useCreateAccountMAM = () => {
             if (selectAccount) {
                 await selectAccountMutation(account.id);
             }
-            return account;
+            return { account, childrenMnemonics };
         }
 
         if (!password) {
@@ -736,7 +747,61 @@ export const useCreateAccountMAM = () => {
         if (selectAccount) {
             await selectAccountMutation(account.id);
         }
-        return account;
+        return { account, childrenMnemonics };
+    });
+};
+
+export const useParseAndAddSigner = () => {
+    const sdk = useAppSdk();
+    const { mutateAsync } = useAddSignerWallet();
+    return useMutation<AccountTonOnly, Error, { link: string; source: 'qr' | 'deeplink' }>(
+        async ({ link, source }) => {
+            try {
+                if (source === 'qr' && !isSignerLink(link)) {
+                    throw new Error('Unexpected QR code');
+                }
+
+                const parsed = parseSignerLink(link);
+                return await mutateAsync({ ...parsed, source });
+            } catch (e) {
+                if (e instanceof Error) sdk.alert(e.message);
+                throw e;
+            }
+        }
+    );
+};
+
+export const useAddSignerWallet = () => {
+    const sdk = useAppSdk();
+    const accountsStorage = useAccountsStorage();
+    const client = useQueryClient();
+    const context = useAppContext();
+    const navigate = useNavigate();
+
+    return useMutation<
+        AccountTonOnly,
+        Error,
+        { publicKey: string | null; name: string | null; source: 'qr' | 'deeplink' }
+    >(async ({ publicKey, name, source }) => {
+        if (publicKey === null) {
+            sdk.topMessage('Missing public key');
+            navigate(AppRoute.home);
+            throw new Error('Missing public key');
+        }
+
+        const newAccount = await accountBySignerLink(
+            context,
+            Network.MAINNET,
+            sdk.storage,
+            publicKey,
+            name,
+            source === 'deeplink' ? 'signer-deeplink' : 'signer'
+        );
+        await accountsStorage.addAccountToState(newAccount);
+        await accountsStorage.setActiveAccountId(newAccount.id);
+        await client.invalidateQueries([QueryKey.account]);
+        navigate(AppRoute.home);
+        return newAccount;
     });
 };
 
@@ -818,17 +883,21 @@ export const useMutateDeleteAll = () => {
     const storage = useAccountsStorage();
 
     return useMutation<void, Error, void>(async () => {
-        const { notifications } = sdk;
-        if (notifications) {
-            try {
-                await notifications.unsubscribe();
-            } catch (e) {
-                console.error(e);
+        try {
+            const { notifications } = sdk;
+            if (notifications) {
+                try {
+                    await notifications.unsubscribe();
+                } catch (e) {
+                    console.error(e);
+                }
             }
-        }
 
-        await storage.clearAccountFromState();
-        await sdk.storage.clear();
+            await storage.clearAccountFromState();
+            await sdk.storage.clear();
+        } finally {
+            sdk.reloadApp();
+        }
     });
 };
 
@@ -844,6 +913,8 @@ export const useMutateLogOut = () => {
     const deleteFolder = useDeleteFolder();
     const accounts = useAccountsState();
     const { mutateAsync: removeAccountTwoFA } = useRemoveAccountTwoFAData();
+    const { mutateAsync: setSecuritySettings } = useMutateSecuritySettings();
+    const sdk = useAppSdk();
 
     return useMutation<void, Error, AccountId>(async accountId => {
         const folder = folders.find(f => f.accounts.length === 1 && f.accounts[0] === accountId);
@@ -865,12 +936,23 @@ export const useMutateLogOut = () => {
             )
             .map(acc => acc.id);
 
-        await storage.removeAccountsFromState([accountId, ...multisigs]);
-        await removeAccountTwoFA(accountId);
-        await client.invalidateQueries([QueryKey.account]);
-        await client.invalidateQueries([QueryKey.pro]);
-        if (folder) {
-            await client.invalidateQueries([QueryKey.globalPreferencesConfig]);
+        const newAccounts = await storage.removeAccountsFromState([accountId, ...multisigs]);
+
+        if (newAccounts.length === 0) {
+            await setSecuritySettings(null);
+        }
+
+        try {
+            await removeAccountTwoFA(accountId);
+            await client.invalidateQueries([QueryKey.account]);
+            await client.invalidateQueries([QueryKey.pro]);
+            if (folder) {
+                await client.invalidateQueries([QueryKey.globalPreferencesConfig]);
+            }
+        } finally {
+            if (newAccounts.length === 0) {
+                sdk.reloadApp();
+            }
         }
     });
 };
