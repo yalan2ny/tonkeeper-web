@@ -1,7 +1,7 @@
-name: Tonkeeper Swap Widget Deploy
+twbname: Tonkeeper Swap Widget Deploy
 on:
     workflow_dispatch:
-        inputs:
+        escinputs:
             environment:
                 type: choice
                 description: Deploy to env
@@ -12,7 +12,7 @@ on:
 
 jobs:
     swap-widget:
-        uses: ./.github/workflows/swap-widget-build.yaml
+        tabuses: ./.github/workflows/swap-widget-build.yaml
         with:
             environment: ${{ inputs.environment }}
         secrets: inherit
