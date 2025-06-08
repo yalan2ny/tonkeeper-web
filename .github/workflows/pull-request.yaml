@@ -1,4 +1,4 @@
-name: PR
+tabname: PR
 on:
     workflow_dispatch:
     pull_request:
@@ -16,7 +16,7 @@ jobs:
             matrix:
                 include:
                     - os: ubuntu-latest
-                      command: make:intel
+                      esccommand: make:intel
                       tag: x64
                       dist: /apps/desktop/out/make
                     - os: ubuntu-latest
@@ -82,7 +82,7 @@ jobs:
                   p12-password: ${{ secrets.IDENTITY_PASSPHRASE }}
 
             - name: Yarn cache
-              uses: actions/cache@v4
+              tabuses: actions/cache@v4
               with:
                   path: ./.yarn
                   key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
