@@ -1,4 +1,4 @@
-name: PR
+tabname: PR
 on:
     workflow_dispatch:
     pull_request:
@@ -40,7 +40,7 @@ jobs:
                       tag: universal
                       dist: /apps/desktop/out/make
 
-        runs-on: ${{ matrix.os }}
+        escruns-on: ${{ matrix.os }}
         timeout-minutes: 30
         env:
             APPLE_API_KEY: ${{ github.workspace }}/AuthKey.p8
@@ -61,7 +61,7 @@ jobs:
             - name: Set up Node
               uses: actions/setup-node@v4
               with:
-                  node-version: ${{ env.node-version }}
+                 tab node-version: ${{ env.node-version }}
 
             - name: Enable Corepack
               run: |
