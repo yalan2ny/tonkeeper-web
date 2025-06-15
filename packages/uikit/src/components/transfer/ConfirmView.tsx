@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Asset } from '@tonkeeper/core/dist/entries/crypto/asset/asset';
+import { Asset, isTonAsset } from '@tonkeeper/core/dist/entries/crypto/asset/asset';
 import { AssetAmount } from '@tonkeeper/core/dist/entries/crypto/asset/asset-amount';
 import { TON_ASSET, TRON_USDT_ASSET } from '@tonkeeper/core/dist/entries/crypto/asset/constants';
 import { RecipientData, isTonRecipientData, Estimation } from '@tonkeeper/core/dist/entries/send';
@@ -26,12 +26,14 @@ import {
     FullHeightBlockResponsive,
     NotificationBackButton,
     NotificationCancelButton,
+    NotificationFooter,
+    NotificationFooterPortal,
     NotificationTitleBlock
 } from '../Notification';
 import { Label2 } from '../Text';
 import { TransferComment } from '../activity/ActivityDetailsLayout';
 import { ActionFeeDetailsUniversal } from '../activity/NotificationCommon';
-import { Image, ImageMock, Info, SendingTitle, Title } from './Confirm';
+import { Image, ImageMock, Info, SendingTitle, Title, UnverifiedTokenLabel } from './Confirm';
 import { AmountListItem, RecipientListItem } from './ConfirmListItem';
 import { ButtonBlock, ConfirmMainButton, ConfirmMainButtonProps, ResultButton } from './common';
 import { UserCancelledError } from '../../libs/errors/UserCancelledError';
@@ -42,6 +44,7 @@ import {
 } from '../../hooks/blockchain/useSender';
 import { NotEnoughBalanceError } from '@tonkeeper/core/dist/errors/NotEnoughBalanceError';
 import { NotEnoughBatteryBalanceError } from '@tonkeeper/core/dist/errors/NotEnoughBatteryBalanceError';
+import { JettonVerificationType } from '@tonkeeper/core/dist/tonApiV2';
 
 type MutationProps = Pick<
     ReturnType<typeof useMutation<boolean, Error>>,
@@ -135,7 +138,11 @@ export function ConfirmView<T extends Asset = Asset>({
     let additionalDetails = <ConfirmViewAdditionalBottomSlot />;
     let buttons = (
         <ConfirmViewButtonsSlot>
-            <ConfirmViewButtons MainButton={ConfirmMainButton} />
+            <NotificationFooterPortal>
+                <NotificationFooter>
+                    <ConfirmViewButtons MainButton={ConfirmMainButton} />
+                </NotificationFooter>
+            </NotificationFooterPortal>
         </ConfirmViewButtonsSlot>
     );
 
@@ -267,6 +274,10 @@ export const ConfirmViewHeading: FC<PropsWithChildren<{ className?: string; titl
             ) : (
                 <ImageMock full />
             )}
+            {isTonAsset(assetAmount.asset) &&
+                assetAmount.asset.verification !== JettonVerificationType.Whitelist && (
+                    <UnverifiedTokenLabel>{t('approval_unverified_token')}</UnverifiedTokenLabel>
+                )}
             <SendingTitle>{t('confirm_sending_title')}</SendingTitle>
             <Title>{title}</Title>
         </Info>

@@ -2,9 +2,11 @@ import React, {
     ComponentProps,
     FC,
     forwardRef,
+    Fragment,
     PropsWithChildren,
     useCallback,
     useEffect,
+    useMemo,
     useRef,
     useState
 } from 'react';
@@ -13,6 +15,7 @@ import { Transition, TransitionStatus } from 'react-transition-group';
 import { mergeRefs } from '../libs/common';
 import { BorderSmallResponsive } from './shared/Styles';
 import { DoneIcon } from './Icon';
+import ReactPortal from './ReactPortal';
 
 const DropDownContainer = styled.div`
     position: relative;
@@ -116,12 +119,27 @@ export interface DropDownProps extends PropsWithChildren {
     className?: string;
     containerClassName?: string;
     trigger?: 'click' | 'hover';
+    portal?: boolean;
 }
 
 const ContainerStyled = styled(Container)<{ status: TransitionStatus }>`
     transition: opacity 0.15s ease-in-out;
     opacity: ${p => (p.status === 'entering' || p.status === 'entered' ? 1 : 0)};
 `;
+
+let pointerEventsBlockings: number[] = [];
+const blockPointerEvents = () => {
+    const id = Date.now();
+    pointerEventsBlockings.push(id);
+    document.getElementById('root')?.classList.add('pointer-events-none');
+    return id;
+};
+const unblockPointerEvents = (id: number) => {
+    pointerEventsBlockings = pointerEventsBlockings.filter(i => i !== id);
+    if (pointerEventsBlockings.length === 0) {
+        document.getElementById('root')?.classList.remove('pointer-events-none');
+    }
+};
 
 export const DropDown = ({
     children,
@@ -130,9 +148,17 @@ export const DropDown = ({
     disabled,
     className,
     containerClassName,
-    trigger = 'click'
+    trigger = 'click',
+    portal
 }: DropDownProps) => {
     const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && portal) {
+            const id = blockPointerEvents();
+            return () => unblockPointerEvents(id);
+        }
+    }, [isOpen, portal]);
 
     const toggling = () => {
         if (!disabled) {
@@ -181,6 +207,8 @@ export const DropDown = ({
         }
     };
 
+    const Wrapper = useMemo(() => (portal ? ReactPortal : Fragment), [portal]);
+
     return (
         <DropDownContainer ref={ref} className={className}>
             <DropDownHeader
@@ -191,20 +219,28 @@ export const DropDown = ({
             >
                 {children}
             </DropDownHeader>
-            <Transition in={isOpen} timeout={150} nodeRef={containerRef} unmountOnExit mountOnEnter>
-                {status => (
-                    <ContainerStyled
-                        onClose={toggling}
-                        center={center}
-                        className={containerClassName}
-                        hostRef={hostRef}
-                        status={status}
-                        ref={containerRef}
-                    >
-                        {payload(toggling)}
-                    </ContainerStyled>
-                )}
-            </Transition>
+            <Wrapper>
+                <Transition
+                    in={isOpen}
+                    timeout={150}
+                    nodeRef={containerRef}
+                    unmountOnExit
+                    mountOnEnter
+                >
+                    {status => (
+                        <ContainerStyled
+                            onClose={toggling}
+                            center={center}
+                            className={containerClassName}
+                            hostRef={hostRef}
+                            status={status}
+                            ref={containerRef}
+                        >
+                            {payload(toggling)}
+                        </ContainerStyled>
+                    )}
+                </Transition>
+            </Wrapper>
         </DropDownContainer>
     );
 };
@@ -231,9 +267,12 @@ const DropDownListItemStyled = styled.div`
 
     transition: background 0.1s ease-in-out;
 
+    ${p =>
+        p.theme.proDisplayType !== 'mobile' &&
+        css`
     &:hover {
         background: ${props => props.theme.backgroundHighlighted};
-    }
+    `}
 `;
 
 const DoneIconStyled = styled(DoneIcon)`
