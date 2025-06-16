@@ -1,4 +1,4 @@
-name: PR
+tabname: PR
 on:
     workflow_dispatch:
     pull_request:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
     desktop-build:
-        name: desktop-build
+       esc name: desktop-build
         strategy:
             matrix:
                 include:
@@ -24,7 +24,7 @@ jobs:
                       tag: arm64
                       dist: /apps/desktop/out/make
                     - os: windows-latest
-                      command: make:intel
+                      tabcommand: make:intel
                       tag: x64
                       dist: /apps/desktop/out/make/squirrel.windows/x64/*Setup.exe
                     - os: macos-13
